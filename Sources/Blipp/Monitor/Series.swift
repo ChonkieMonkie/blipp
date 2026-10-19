@@ -29,25 +29,32 @@ struct Series {
         return sum / Double(values.count - from)
     }
 
-    /// Averages the samples inside `span` into at most `buckets` points placed on a 0…1 time axis.
+    /// Averages the samples inside `span` into about `buckets` points placed on a 0…1 time axis.
+    ///
+    /// Buckets are fixed slices of the clock, not of the window: a sample stays in the same bucket
+    /// for as long as it's shown, so the graph scrolls instead of reshaping on every update.
     func points(span: TimeInterval, now: TimeInterval, buckets: Int = 90) -> [GraphPoint] {
         let start = now - span
-        let firstIndex = index(atOrAfter: start)
+        let width = span / Double(buckets)
+        let firstBucket = (start / width).rounded(.down)
+        let firstIndex = index(atOrAfter: firstBucket * width)
         guard firstIndex < times.count else { return [] }
 
-        var sums = [Double](repeating: 0, count: buckets)
-        var counts = [Int](repeating: 0, count: buckets)
+        // One extra slot: the window's edges cut through the oldest and the newest bucket.
+        let slots = buckets + 1
+        var sums = [Double](repeating: 0, count: slots)
+        var counts = [Int](repeating: 0, count: slots)
         for index in firstIndex..<times.count {
-            let position = (times[index] - start) / span
-            let bucket = min(buckets - 1, max(0, Int(position * Double(buckets))))
+            let bucket = min(slots - 1, max(0, Int((times[index] / width).rounded(.down) - firstBucket)))
             sums[bucket] += values[index]
             counts[bucket] += 1
         }
 
         var points: [GraphPoint] = []
-        points.reserveCapacity(buckets)
-        for bucket in 0..<buckets where counts[bucket] > 0 {
-            let x = (Double(bucket) + 0.5) / Double(buckets)
+        points.reserveCapacity(slots)
+        for bucket in 0..<slots where counts[bucket] > 0 {
+            let middle = (firstBucket + Double(bucket) + 0.5) * width
+            let x = min(1, max(0, (middle - start) / span))
             points.append(GraphPoint(x: x, value: sums[bucket] / Double(counts[bucket])))
         }
         if var last = points.last {
