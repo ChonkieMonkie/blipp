@@ -17,6 +17,11 @@ if arguments.count >= 3, arguments[1] == "--render-gallery" {
     exit(0)
 }
 
+if arguments.count >= 3, arguments[1] == "--render-readme" {
+    MainActor.assumeIsolated { ReadmeImages.render(to: arguments[2]) }
+    exit(0)
+}
+
 if arguments.contains("--benchmark") {
     Benchmark.run()
     exit(0)

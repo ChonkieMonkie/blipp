@@ -42,6 +42,8 @@ final class SystemMonitor: ObservableObject {
     private var batteryInfo: BatteryInfo?
     private var batteryDirty = true
     private var span: TimeInterval = 60
+    /// Only for rendering README pictures: shown instead of the real process list.
+    private var exampleProcesses: [ProcessUsage]?
 
     // Only touched on the main thread.
     private let moodEngine = MoodEngine()
@@ -99,6 +101,12 @@ final class SystemMonitor: ObservableObject {
         if let powerSource {
             CFRunLoopRemoveSource(CFRunLoopGetMain(), powerSource, .defaultMode)
         }
+    }
+
+    /// Shows a fixed list instead of this Mac's processes. Used when rendering README pictures,
+    /// so nobody's own apps end up in them; the app itself never calls this.
+    func useExampleProcesses(_ processes: [ProcessUsage]) {
+        queue.async { [weak self] in self?.exampleProcesses = processes }
     }
 
     /// The panel shows graphs, processes and live battery details, so it gets them at full rate.
@@ -219,7 +227,7 @@ final class SystemMonitor: ObservableObject {
             topProcesses = processes.sample(now: now)
             lastProcessScan = now
         }
-        next.topProcesses = topProcesses
+        next.topProcesses = exampleProcesses ?? topProcesses
 
         if let celsius = next.temperature {
             temperatureSeries.append(celsius, at: now)

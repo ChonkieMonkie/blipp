@@ -147,7 +147,7 @@ struct PanelView: View {
                 GraphTile(
                     title: "Temperature",
                     value: s.temperature.map { "\(Int($0.rounded())) °C" } ?? s.thermal.title,
-                    points: graphs.temperature, range: 30...100, scale: .temperature
+                    points: graphs.temperature, range: 20...100, scale: .temperature
                 )
                 .help("Thermal state: \(s.thermal.title)")
                 GraphTile(
@@ -454,7 +454,7 @@ private struct MemoryDetail: View {
             .clipShape(Capsule())
             .accessibilityHidden(true)
 
-            Grid(alignment: .leading, horizontalSpacing: 14, verticalSpacing: 5) {
+            Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 5) {
                 GridRow {
                     legend(parts[0])
                     legend(parts[1])
@@ -494,7 +494,9 @@ private struct MemoryDetail: View {
             .frame(width: 9, height: 9)
             Text(part.name)
                 .lineLimit(1)
-            Spacer(minLength: 4)
+                .minimumScaleFactor(0.85)
+                .layoutPriority(1)
+            Spacer(minLength: 2)
             Text(Format.bytes(part.bytes))
                 .fontWeight(.heavy)
                 .monospacedDigit()
