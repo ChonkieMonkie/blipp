@@ -1,0 +1,143 @@
+import AppKit
+import QuartzCore
+import SwiftUI
+
+/// Animated, full-detail Blipp for the panel.
+///
+/// Drawn into its own Core Animation layer: each frame only asks that layer to redraw, so the
+/// panel's SwiftUI views and AppKit layout aren't touched 24 times a second.
+struct BlippView: NSViewRepresentable {
+    let scene: BlippScene
+    /// Size of Blipp's 64-unit body box. The view adds headroom for things above his head.
+    var size: CGFloat
+    var animated = true
+
+    func makeNSView(context: Context) -> BlippCanvasView {
+        let view = BlippCanvasView(scene: scene, blippSize: size)
+        view.animated = animated
+        return view
+    }
+
+    func updateNSView(_ view: BlippCanvasView, context: Context) {
+        view.scene = scene
+        view.blippSize = size
+        view.animated = animated
+    }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, nsView: BlippCanvasView, context: Context) -> CGSize? {
+        CGSize(width: size * 1.25, height: size * 1.3)
+    }
+}
+
+final class BlippCanvasView: NSView {
+    static let framesPerSecond = 24.0
+
+    var scene: BlippScene {
+        get { blippLayer.scene }
+        set { if newValue != blippLayer.scene { blippLayer.scene = newValue; blippLayer.setNeedsDisplay() } }
+    }
+    var blippSize: CGFloat {
+        get { blippLayer.blippSize }
+        set { if newValue != blippLayer.blippSize { blippLayer.blippSize = newValue; blippLayer.setNeedsDisplay() } }
+    }
+    var animated = true {
+        didSet { if animated != oldValue { updateTimer() } }
+    }
+
+    private let blippLayer = BlippLayer()
+    private var timer: Timer?
+
+    init(scene: BlippScene, blippSize: CGFloat) {
+        super.init(frame: .zero)
+        wantsLayer = true
+        blippLayer.scene = scene
+        blippLayer.blippSize = blippSize
+        layer?.addSublayer(blippLayer)
+        setAccessibilityElement(true)
+        setAccessibilityRole(.image)
+        setAccessibilityLabel("Blipp")
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    override var isOpaque: Bool { false }
+
+    override func layout() {
+        super.layout()
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        blippLayer.frame = bounds
+        CATransaction.commit()
+    }
+
+    override func viewDidChangeBackingProperties() {
+        super.viewDidChangeBackingProperties()
+        blippLayer.contentsScale = window?.backingScaleFactor ?? 2
+        blippLayer.setNeedsDisplay()
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        blippLayer.contentsScale = window?.backingScaleFactor ?? 2
+        updateTimer()
+    }
+
+    private var shouldAnimate: Bool {
+        animated && window != nil && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+    }
+
+    private func updateTimer() {
+        blippLayer.animated = shouldAnimate
+        blippLayer.setNeedsDisplay()
+        guard shouldAnimate else {
+            timer?.invalidate()
+            timer = nil
+            return
+        }
+        guard timer == nil else { return }
+        let timer = Timer(timeInterval: 1 / Self.framesPerSecond, repeats: true) { [weak self] _ in
+            self?.blippLayer.setNeedsDisplay()
+        }
+        timer.tolerance = 0.01
+        RunLoop.main.add(timer, forMode: .common)
+        self.timer = timer
+    }
+
+    deinit {
+        timer?.invalidate()
+    }
+}
+
+private final class BlippLayer: CALayer {
+    var scene = BlippScene()
+    var blippSize: CGFloat = 50
+    var animated = true
+
+    override init() {
+        super.init()
+        needsDisplayOnBoundsChange = true
+        actions = ["contents": NSNull(), "bounds": NSNull(), "position": NSNull()]
+    }
+
+    override init(layer: Any) {
+        super.init(layer: layer)
+        if let other = layer as? BlippLayer {
+            scene = other.scene
+            blippSize = other.blippSize
+            animated = other.animated
+        }
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    override func draw(in ctx: CGContext) {
+        // Layers draw with a bottom-left origin; Blipp is designed top-down.
+        ctx.translateBy(x: 0, y: bounds.height)
+        ctx.scaleBy(x: 1, y: -1)
+        let time = animated ? ProcessInfo.processInfo.systemUptime : 0.4
+        let origin = CGPoint(x: (bounds.width - blippSize) / 2, y: bounds.height - blippSize * 1.02)
+        BlippRenderer.draw(scene, in: ctx, origin: origin, size: blippSize, time: time)
+    }
+}

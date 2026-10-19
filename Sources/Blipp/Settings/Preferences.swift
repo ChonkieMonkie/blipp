@@ -1,0 +1,121 @@
+import Combine
+import Foundation
+
+enum MenuBarDisplay: String, CaseIterable, Identifiable {
+    case blippOnly, cpuPercent, miniBars, batteryPercent
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .blippOnly: return "Blipp only"
+        case .cpuPercent: return "Blipp + CPU %"
+        case .miniBars: return "Blipp + mini bars"
+        case .batteryPercent: return "Blipp + battery %"
+        }
+    }
+}
+
+enum IconStyle: String, CaseIterable, Identifiable {
+    case color, monochrome
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .color: return "Color"
+        case .monochrome: return "Monochrome"
+        }
+    }
+}
+
+enum ClickAction: String, CaseIterable, Identifiable {
+    case showPanel, openActivityMonitor
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .showPanel: return "Show the panel"
+        case .openActivityMonitor: return "Open Activity Monitor"
+        }
+    }
+}
+
+/// User settings, persisted in UserDefaults.
+final class Preferences: ObservableObject {
+    static let graphIntervals: [Double] = [0.5, 1, 2, 5]
+    static let graphSpans: [Double] = [30, 60, 300, 900, 3600]
+    static let moodIntervals: [Double] = [1, 2, 5]
+
+    private let defaults: UserDefaults
+
+    @Published var menuBarDisplay: MenuBarDisplay {
+        didSet { defaults.set(menuBarDisplay.rawValue, forKey: Keys.menuBarDisplay) }
+    }
+    @Published var iconStyle: IconStyle {
+        didSet { defaults.set(iconStyle.rawValue, forKey: Keys.iconStyle) }
+    }
+    @Published var animateMenuBar: Bool {
+        didSet { defaults.set(animateMenuBar, forKey: Keys.animateMenuBar) }
+    }
+    @Published var randomizeVariants: Bool {
+        didSet { defaults.set(randomizeVariants, forKey: Keys.randomizeVariants) }
+    }
+    @Published var graphInterval: Double {
+        didSet { defaults.set(graphInterval, forKey: Keys.graphInterval) }
+    }
+    @Published var graphSpan: Double {
+        didSet { defaults.set(graphSpan, forKey: Keys.graphSpan) }
+    }
+    @Published var moodInterval: Double {
+        didSet { defaults.set(moodInterval, forKey: Keys.moodInterval) }
+    }
+    @Published var clickAction: ClickAction {
+        didSet { defaults.set(clickAction.rawValue, forKey: Keys.clickAction) }
+    }
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+        menuBarDisplay = MenuBarDisplay(rawValue: defaults.string(forKey: Keys.menuBarDisplay) ?? "") ?? .blippOnly
+        iconStyle = IconStyle(rawValue: defaults.string(forKey: Keys.iconStyle) ?? "") ?? .color
+        animateMenuBar = defaults.object(forKey: Keys.animateMenuBar) as? Bool ?? true
+        randomizeVariants = defaults.object(forKey: Keys.randomizeVariants) as? Bool ?? true
+        graphInterval = Self.pick(defaults.double(forKey: Keys.graphInterval), from: Self.graphIntervals, fallback: 1)
+        graphSpan = Self.pick(defaults.double(forKey: Keys.graphSpan), from: Self.graphSpans, fallback: 60)
+        moodInterval = Self.pick(defaults.double(forKey: Keys.moodInterval), from: Self.moodIntervals, fallback: 2)
+        clickAction = ClickAction(rawValue: defaults.string(forKey: Keys.clickAction) ?? "") ?? .showPanel
+    }
+
+    private static func pick(_ value: Double, from options: [Double], fallback: Double) -> Double {
+        options.contains(value) ? value : fallback
+    }
+
+    static func spanTitle(_ seconds: Double, short: Bool = true) -> String {
+        switch seconds {
+        case ..<60: return short ? "\(Int(seconds)) s" : "\(Int(seconds)) seconds"
+        case ..<3600:
+            let minutes = Int(seconds / 60)
+            return short ? "\(minutes) min" : (minutes == 1 ? "minute" : "\(minutes) minutes")
+        default:
+            let hours = Int(seconds / 3600)
+            return short ? "\(hours) h" : (hours == 1 ? "hour" : "\(hours) hours")
+        }
+    }
+
+    static func intervalTitle(_ seconds: Double) -> String {
+        if seconds < 1 { return "0.5 seconds" }
+        return seconds == 1 ? "1 second" : "\(Int(seconds)) seconds"
+    }
+
+    private enum Keys {
+        static let menuBarDisplay = "menuBarDisplay"
+        static let iconStyle = "iconStyle"
+        static let animateMenuBar = "animateMenuBar"
+        static let randomizeVariants = "randomizeVariants"
+        static let graphInterval = "graphInterval"
+        static let graphSpan = "graphSpan"
+        static let moodInterval = "moodInterval"
+        static let clickAction = "clickAction"
+    }
+}
