@@ -32,4 +32,9 @@ enum Format {
     static func percent(_ value: Double) -> String {
         "\(Int(value.rounded()))%"
     }
+
+    /// Like `percent`, but a process that did run never reads as a flat "0%".
+    static func processPercent(_ value: Double) -> String {
+        value > 0 && value < 0.5 ? "<1%" : percent(value)
+    }
 }

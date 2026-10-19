@@ -7,6 +7,11 @@ final class ProcessSampler {
     private var previous: [Int32: UInt64] = [:]
     private var previousTime: TimeInterval?
     private var names: [Int32: String] = [:]
+    /// Processes macOS won't report on (other users' and the system's). Asking again costs as much
+    /// as a real read, so they're skipped until the next retry.
+    private var denied: Set<Int32> = []
+    private var lastDeniedRetry: TimeInterval = -.infinity
+    private static let deniedRetryInterval: TimeInterval = 60
     private let ticksToNanos: Double = {
         var timebase = mach_timebase_info_data_t()
         mach_timebase_info(&timebase)
@@ -17,8 +22,17 @@ final class ProcessSampler {
         let pids = listPids()
         var current: [Int32: UInt64] = [:]
         current.reserveCapacity(pids.count)
+        if now - lastDeniedRetry >= Self.deniedRetryInterval {
+            denied.removeAll(keepingCapacity: true)
+            lastDeniedRetry = now
+        }
+        var stillDenied: Set<Int32> = []
 
         for pid in pids where pid > 0 {
+            if denied.contains(pid) {
+                stillDenied.insert(pid)
+                continue
+            }
             var usage = rusage_info_v2()
             let result = withUnsafeMutablePointer(to: &usage) { pointer in
                 pointer.withMemoryRebound(to: rusage_info_t?.self, capacity: 1) {
@@ -27,10 +41,13 @@ final class ProcessSampler {
             }
             if result == 0 {
                 current[pid] = usage.ri_user_time &+ usage.ri_system_time
+            } else {
+                stillDenied.insert(pid)
             }
         }
 
         defer {
+            denied = stillDenied
             previous = current
             previousTime = now
             names = names.filter { current[$0.key] != nil }
@@ -42,7 +59,8 @@ final class ProcessSampler {
         for (pid, ticks) in current {
             guard let before = previous[pid], ticks >= before else { continue }
             let cpu = Double(ticks - before) * ticksToNanos / elapsedNanos * 100
-            if cpu >= 0.5 {
+            // Anything that ran at all counts, so a quiet Mac still has a full top three.
+            if cpu > 0 {
                 usages.append(ProcessUsage(pid: pid, name: "", cpu: cpu))
             }
         }

@@ -70,7 +70,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         // and closes it after 32 s (for measuring energy use and checking animations).
         if CommandLine.arguments.contains("--debug-panel-cycle") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in self?.togglePopover() }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 32) { [weak self] in self?.popover.performClose(nil) }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 32) { [weak self] in
+                // Started from a script, Blipp never becomes the active app, and an inactive
+                // app's popover never finishes its closing animation. So close it without one.
+                guard let popover = self?.popover else { return }
+                popover.animates = false
+                popover.close()
+                popover.animates = true
+            }
             for (delay, section) in [(4.0, "cpu"), (6.0, "cpu"), (8.0, "memory"), (10.0, "memory")] {
                 DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
                     NotificationCenter.default.post(name: Notification.Name("BlippDebugToggle"), object: section)

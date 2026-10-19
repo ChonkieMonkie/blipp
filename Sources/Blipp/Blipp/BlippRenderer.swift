@@ -547,9 +547,11 @@ enum BlippRenderer {
     }
 
     private static func zLetter(_ p: Painter, x: CGFloat, y: CGFloat, size: CGFloat, alpha: CGFloat) {
-        let w = size * 0.75
-        let data = "M\(x) \(y)H\(x + w)L\(x) \(y + size)H\(x + w)"
-        p.stroke(data, width: size * 0.2, alpha: alpha)
+        // One unit-sized "Z", moved and scaled into place: building the path from the animated
+        // coordinates would give SVGPath's cache a new entry every frame.
+        p.group(CGAffineTransform(translationX: x, y: y).scaledBy(x: size, y: size)) {
+            p.stroke("M0 0H0.75L0 1H0.75", width: 0.2, alpha: alpha)
+        }
     }
 
     private static func battery(_ p: Painter, x: CGFloat, y: CGFloat, outline: UInt32, fillWidth: CGFloat, fillColor: UInt32) {

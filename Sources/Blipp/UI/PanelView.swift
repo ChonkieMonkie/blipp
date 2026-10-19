@@ -171,6 +171,8 @@ struct PanelView: View {
 
     // MARK: Processes
 
+    private static let processRows = 3
+
     private func topProcesses(_ s: Snapshot) -> some View {
         VStack(alignment: .leading, spacing: 7) {
             Divider()
@@ -179,22 +181,25 @@ struct PanelView: View {
                 .font(.system(size: 11, weight: .heavy, design: .rounded))
                 .tracking(0.6)
                 .foregroundStyle(.secondary)
-            if s.topProcesses.isEmpty {
-                Text("Nothing busy at the moment")
-                    .font(.system(size: 13, design: .rounded))
-                    .foregroundStyle(.secondary)
-            } else {
-                ForEach(s.topProcesses) { process in
-                    HStack {
+            // Always three rows tall, so the panel's bottom never jumps when fewer
+            // processes are busy (or before the first measurement is in).
+            ForEach(0..<Self.processRows, id: \.self) { index in
+                let process = index < s.topProcesses.count ? s.topProcesses[index] : nil
+                HStack {
+                    if let process {
                         Text(process.name)
                             .lineLimit(1)
                         Spacer()
-                        Text(Format.percent(process.cpu))
+                        Text(Format.processPercent(process.cpu))
                             .fontWeight(.bold)
                             .monospacedDigit()
+                    } else {
+                        Text(index == 0 ? "Measuring…" : " ")
+                            .foregroundStyle(.secondary)
+                        Spacer()
                     }
-                    .font(.system(size: 13, design: .rounded))
                 }
+                .font(.system(size: 13, design: .rounded))
             }
         }
     }
