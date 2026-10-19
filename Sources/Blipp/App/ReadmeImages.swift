@@ -3,7 +3,7 @@ import SwiftUI
 
 /// Developer tool: `Blipp --render-readme <folder>` renders the pictures used in README.md:
 /// a labelled mood gallery, the menu bar icons, the app icon, and the real panel in light and
-/// dark mode (sampled from this Mac for ~40 s so the graphs have something to show).
+/// dark mode (sampled from this Mac for 65 s, so the one-minute graphs are full).
 @MainActor
 enum ReadmeImages {
     static func render(to path: String) {
@@ -114,7 +114,7 @@ enum ReadmeImages {
             ProcessUsage(pid: 3, name: "Mail", cpu: 2),
         ])
         monitor.setPanelVisible(true)
-        RunLoop.main.run(until: Date().addingTimeInterval(40))
+        RunLoop.main.run(until: Date().addingTimeInterval(65))
 
         for (name, appearance) in [("panel-light.png", NSAppearance.Name.aqua), ("panel-dark.png", NSAppearance.Name.darkAqua)] {
             if let image = snapshotPanel(monitor: monitor, prefs: prefs, appearance: appearance) {

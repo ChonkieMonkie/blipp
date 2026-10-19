@@ -49,6 +49,7 @@ final class SystemMonitor: ObservableObject {
     private let moodEngine = MoodEngine()
     private var lastMoodUpdate: TimeInterval = -.infinity
     private var smoothedCPU: Double = 0
+    private var panelOnScreen = false
 
     /// With the panel open: the whole set of die sensors is refreshed every ~4 samples.
     private enum Visible {
@@ -111,6 +112,7 @@ final class SystemMonitor: ObservableObject {
 
     /// The panel shows graphs, processes and live battery details, so it gets them at full rate.
     func setPanelVisible(_ visible: Bool) {
+        panelOnScreen = visible
         queue.async { [weak self] in
             guard let self, self.panelVisible != visible else { return }
             self.panelVisible = visible
@@ -262,12 +264,19 @@ final class SystemMonitor: ObservableObject {
         DispatchQueue.main.async { [weak self] in self?.graphs = graphs }
     }
 
+    /// Blipp's look and headline change at the "Update Blipp every" pace. The subtitle quotes live
+    /// numbers ("CPU at 8%"), so while the panel is open it follows every sample instead; otherwise
+    /// it would disagree with the bars right below it.
     private func updateMood(now: TimeInterval, force: Bool) {
-        guard force || now - lastMoodUpdate >= prefs.moodInterval - 0.1 else { return }
-        lastMoodUpdate = now
+        let due = force || now - lastMoodUpdate >= prefs.moodInterval - 0.1
+        guard due || panelOnScreen else { return }
         let next = moodEngine.mood(for: snapshot, smoothedCPU: smoothedCPU)
-        if next != mood {
-            mood = next
+        if due {
+            lastMoodUpdate = now
+            if next != mood { mood = next }
+        } else if next.subtitle != mood.subtitle,
+                  next.title == mood.title || (next.subtitleIsCPULine && mood.subtitleIsCPULine) {
+            mood.subtitle = next.subtitle
         }
     }
 }

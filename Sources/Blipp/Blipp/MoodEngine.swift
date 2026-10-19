@@ -4,6 +4,9 @@ struct Mood: Equatable {
     var scene: BlippScene
     var title: String
     var subtitle: String
+    /// True when the subtitle is the plain CPU line ("CPU at 8%" or "Safari is using 40% CPU"),
+    /// which can be refreshed with new numbers whatever the headline says.
+    var subtitleIsCPULine = false
 
     static let initial = Mood(scene: BlippScene(), title: "Hi, I'm Blipp!", subtitle: "Taking a first look at your Mac…")
 }
@@ -249,7 +252,7 @@ final class MoodEngine {
             text = ("Just chilling", defaultSubtitle)
         }
 
-        return Mood(scene: scene, title: text.0, subtitle: text.1)
+        return Mood(scene: scene, title: text.0, subtitle: text.1, subtitleIsCPULine: text.1 == defaultSubtitle)
     }
 
     private func batteryMood(_ battery: BatteryInfo?) -> BatteryMood {

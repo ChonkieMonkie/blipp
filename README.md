@@ -134,7 +134,7 @@ swift build -c release
 BIN="$(swift build -c release --show-bin-path)"
 "$BIN/Blipp" --benchmark --sensors        # time every sampler and list the temperature sensors
 "$BIN/Blipp" --render-gallery /tmp/blipp  # PNGs of every state and menu bar icon
-"$BIN/Blipp" --render-readme docs         # regenerate the pictures in this README (takes ~40 s)
+"$BIN/Blipp" --render-readme docs         # regenerate the pictures in this README (takes ~70 s)
 open build/Blipp.app --args --debug-panel-cycle  # open the panel, expand and collapse both sections, close it
 ```
 
