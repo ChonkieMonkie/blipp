@@ -56,6 +56,7 @@ enum Palette {
     static let straw: UInt32 = 0xFF5D8F
     static let cookie: UInt32 = 0xE9B872
     static let cardboard: UInt32 = 0xD9A86C
+    static let steel: UInt32 = 0xC9D3DD
     static let red: UInt32 = 0xE5484D
     static let green: UInt32 = 0x22A06B
     static let ballPink: UInt32 = 0xFF5D8F

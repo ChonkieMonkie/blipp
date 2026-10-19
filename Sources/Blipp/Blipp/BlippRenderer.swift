@@ -31,6 +31,17 @@ struct Painter {
         self.stroke(data, stroke, width: width)
     }
 
+    /// Same sticker look for a ready-made path; even-odd, so inner subpaths become holes.
+    func shape(_ path: CGPath, fill: UInt32, stroke: UInt32? = Palette.ink, width: CGFloat = 2) {
+        cg.addPath(path)
+        cg.setFillColor(Painter.color(fill))
+        cg.fillPath(using: .evenOdd)
+        if let stroke {
+            cg.addPath(path)
+            strokeCurrent(stroke, width: width)
+        }
+    }
+
     func ellipse(_ cx: CGFloat, _ cy: CGFloat, _ rx: CGFloat, _ ry: CGFloat, fill: UInt32, alpha: CGFloat = 1, stroke: UInt32? = nil, width: CGFloat = 2) {
         let rect = CGRect(x: cx - rx, y: cy - ry, width: rx * 2, height: ry * 2)
         cg.addEllipse(in: rect)
@@ -562,6 +573,36 @@ enum BlippRenderer {
         }
     }
 
+    // MARK: Gear
+
+    /// A gear centered on (cx, cy): `teeth` trapezoid teeth between `root` and `outer`, with a
+    /// round hole. `tip` and `base` are the share of each tooth's slice its top and foot take up.
+    private static func gearPath(cx: CGFloat, cy: CGFloat, teeth: Int, outer: CGFloat, root: CGFloat, hole: CGFloat,
+                                 tip: CGFloat = 0.42, base: CGFloat = 0.62) -> CGPath {
+        let path = CGMutablePath()
+        let pitch = 2 * CGFloat.pi / CGFloat(teeth)
+        let center = CGPoint(x: cx, y: cy)
+        func point(_ radius: CGFloat, _ angle: CGFloat) -> CGPoint {
+            CGPoint(x: cx + radius * cos(angle), y: cy + radius * sin(angle))
+        }
+        for i in 0..<teeth {
+            let mid = CGFloat(i) * pitch - .pi / 2
+            let baseHalf = pitch * base / 2
+            let tipHalf = pitch * tip / 2
+            if i == 0 { path.move(to: point(root, mid - baseHalf)) }
+            path.addLine(to: point(outer, mid - tipHalf))
+            path.addArc(center: center, radius: outer, startAngle: mid - tipHalf, endAngle: mid + tipHalf, clockwise: false)
+            path.addLine(to: point(root, mid + baseHalf))
+            path.addArc(center: center, radius: root, startAngle: mid + baseHalf, endAngle: mid + pitch - baseHalf, clockwise: false)
+        }
+        path.closeSubpath()
+        path.addEllipse(in: CGRect(x: cx - hole, y: cy - hole, width: hole * 2, height: hole * 2))
+        return path
+    }
+
+    /// Eight teeth and a hole: still clearly a gear at the panel's 50 points.
+    private static let gear = gearPath(cx: 50, cy: 8, teeth: 8, outer: 7.6, root: 5.8, hole: 2.3)
+
     private static func drawOverhead(_ p: Painter, _ scene: BlippScene, _ t: Double) {
         switch scene.overhead {
         case .none, .flame:
@@ -576,9 +617,7 @@ enum BlippRenderer {
 
         case .gear:
             p.group(.rotation(CGFloat(360 * cycle(t, 2.4)), around: 50, 8)) {
-                // Teeth, then a solid rim; the middle stays see-through like the rest of the panel.
-                p.ring(50, 8, 5.5, width: 3.4, dash: [2.6, 1.7])
-                p.ring(50, 8, 3.9, width: 2.2)
+                p.shape(gear, fill: Palette.steel, width: 1.4)
             }
             let flash = pulse(t, 0.6)
             p.stroke("M1 30H5M0 37H4M59 30H63M60 37H64", width: 2, alpha: 0.2 + 0.5 * flash)
