@@ -87,9 +87,11 @@ In the menu bar, Blipp is redrawn with thicker lines so he stays readable at 18 
 
 ## Built to run all day
 
-- **Panel closed:** about 0.5 % of one core, roughly one wake-up a second and ~13 MB of memory.
+- **Panel closed:** about 0.4 % of one core and less than one wake-up a second.
   The panel's views don't exist while it's closed, and details that only show up in it refresh less often.
 - **Panel open:** about 3 % of one core while you're looking at it.
+- **Memory:** about 12 MB until you first open the panel, then around 30 MB, because macOS keeps the
+  frameworks the panel is drawn with loaded.
 - **Displays asleep:** sampling pauses completely. Battery changes still arrive instantly through
   macOS notifications instead of polling.
 - **Menu bar:** the icon only redraws when a frame actually changes (a blink, a drop of sweat).
