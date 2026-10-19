@@ -156,8 +156,6 @@ struct PanelView: View {
 
     private func tiles(_ s: Snapshot) -> some View {
         let graphs = monitor.graphs
-        let networkPeak = max(graphs.networkDown.map(\.value).max() ?? 0, 1_000_000) * 1.15
-        let diskPeak = max(graphs.diskIO.map(\.value).max() ?? 0, 10_000_000) * 1.15
         return VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
                 GraphTile(
@@ -166,18 +164,19 @@ struct PanelView: View {
                     points: graphs.temperature, range: 20...100, scale: .temperature
                 )
                 .help("Thermal state: \(s.thermal.title)")
-                GraphTile(
-                    title: "Network ↓",
-                    value: Format.rate(s.networkDown),
-                    points: graphs.networkDown, range: 0...networkPeak, scale: .network
+                TrafficTile(
+                    title: "Network",
+                    first: .init(label: "↓", name: "Download", rate: s.networkDown, points: graphs.networkDown, scale: .network, color: HeatScale.blueMid),
+                    second: .init(label: "↑", name: "Upload", rate: s.networkUp, points: graphs.networkUp, scale: .upload, color: HeatScale.violetMid),
+                    floor: 1_000_000
                 )
-                .help("Upload: \(Format.rate(s.networkUp))")
-                GraphTile(
+                TrafficTile(
                     title: "Disk · \(Format.diskSpace(s.diskFree))",
-                    value: Format.rate(s.diskIO),
-                    points: graphs.diskIO, range: 0...diskPeak, scale: .disk
+                    first: .init(label: "R", name: "Read", rate: s.diskRead, points: graphs.diskRead, scale: .diskRead, color: HeatScale.blueMid),
+                    second: .init(label: "W", name: "Write", rate: s.diskWrite, points: graphs.diskWrite, scale: .diskWrite, color: HeatScale.roseMid),
+                    floor: 10_000_000
                 )
-                .help("Read \(Format.rate(s.diskRead)) · Write \(Format.rate(s.diskWrite)) · \(Format.diskSpace(s.diskFree)) free")
+                .help("\(Format.diskSpace(s.diskFree)) free on the startup disk")
             }
             Text("Graphs show the last \(Preferences.spanTitle(prefs.graphSpan, short: false)).")
                 .font(.system(size: 11, design: .rounded))
@@ -649,6 +648,70 @@ private struct GraphTile: View {
         .frame(height: 84)
         .modifier(CardStyle())
         .accessibilityElement(children: .combine)
+    }
+}
+
+/// Two directions of traffic (download and upload, reads and writes): one row each, and both
+/// graphs overlaid on one shared scale, so their heights compare directly.
+private struct TrafficTile: View {
+    struct Direction {
+        let label: String
+        let name: String
+        let rate: Double
+        let points: [GraphPoint]
+        let scale: HeatScale
+        let color: UInt32
+    }
+
+    let title: String
+    /// Drawn underneath.
+    let first: Direction
+    let second: Direction
+    /// The graph's top never drops below this, so idle noise stays flat.
+    let floor: Double
+
+    var body: some View {
+        let peak = max(first.points.map(\.value).max() ?? 0, second.points.map(\.value).max() ?? 0, floor) * 1.15
+        ZStack(alignment: .topLeading) {
+            VStack {
+                Spacer(minLength: 0)
+                ZStack {
+                    Sparkline(points: first.points, range: 0...peak, scale: first.scale)
+                    Sparkline(points: second.points, range: 0...peak, scale: second.scale)
+                }
+                .frame(height: 36)
+            }
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                row(first)
+                row(second)
+            }
+            .padding(.horizontal, 9)
+            .padding(.top, 8)
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 84)
+        .modifier(CardStyle())
+        .accessibilityElement(children: .combine)
+    }
+
+    private func row(_ direction: Direction) -> some View {
+        HStack(spacing: 3) {
+            Text(direction.label)
+                .foregroundStyle(Color(hex: direction.color))
+                .frame(width: 11, alignment: .leading)
+            Text(Format.rate(direction.rate))
+        }
+        .font(.system(size: 13, weight: .heavy, design: .rounded))
+        .monospacedDigit()
+        .lineLimit(1)
+        .minimumScaleFactor(0.7)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(direction.name) \(Format.rate(direction.rate))")
     }
 }
 

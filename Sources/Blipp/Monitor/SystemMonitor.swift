@@ -49,8 +49,10 @@ final class SystemMonitor: ObservableObject {
     private lazy var network = NetworkSampler(queue: queue)
     private var cpuSeries = Series(maxAge: 30)
     private var temperatureSeries = Series()
-    private var networkSeries = Series()
-    private var diskSeries = Series()
+    private var downloadSeries = Series()
+    private var uploadSeries = Series()
+    private var readSeries = Series()
+    private var writeSeries = Series()
     private var memorySeries = Series()
     private var lastProcessScan: TimeInterval = -.infinity
     private var topProcesses: [ProcessUsage] = []
@@ -60,6 +62,8 @@ final class SystemMonitor: ObservableObject {
     private var span: TimeInterval = 60
     /// Only for rendering README pictures: shown instead of the real process list.
     private var exampleProcesses: [ProcessUsage]?
+    /// Only for rendering README pictures: network and disk speeds for a given uptime.
+    private var exampleTraffic: ((TimeInterval) -> (down: Double, up: Double, read: Double, write: Double))?
 
     // Only touched on the main thread.
     private let moodEngine = MoodEngine()
@@ -124,6 +128,12 @@ final class SystemMonitor: ObservableObject {
     /// so nobody's own apps end up in them; the app itself never calls this.
     func useExampleProcesses(_ processes: [ProcessUsage]) {
         queue.async { [weak self] in self?.exampleProcesses = processes }
+    }
+
+    /// Shows made-up network and disk traffic instead of this Mac's. Used when rendering README
+    /// pictures, so the graphs have something to show; the app itself never calls this.
+    func useExampleTraffic(_ traffic: @escaping (TimeInterval) -> (down: Double, up: Double, read: Double, write: Double)) {
+        queue.async { [weak self] in self?.exampleTraffic = traffic }
     }
 
     /// The panel shows graphs, processes and live battery details, so it gets them at full rate.
@@ -237,6 +247,9 @@ final class SystemMonitor: ObservableObject {
         next.diskWrite = io.write
         next.diskFree = io.free
         next.diskTotal = io.total
+        if let example = exampleTraffic?(now) {
+            (next.networkDown, next.networkUp, next.diskRead, next.diskWrite) = example
+        }
 
         // Scanning every process is the most expensive part: at most once a second with the
         // panel open, every few seconds otherwise (it only feeds text).
@@ -250,8 +263,10 @@ final class SystemMonitor: ObservableObject {
         if let celsius = next.temperature {
             temperatureSeries.append(celsius, at: now)
         }
-        networkSeries.append(next.networkDown, at: now)
-        diskSeries.append(next.diskIO, at: now)
+        downloadSeries.append(next.networkDown, at: now)
+        uploadSeries.append(next.networkUp, at: now)
+        readSeries.append(next.diskRead, at: now)
+        writeSeries.append(next.diskWrite, at: now)
         memorySeries.append(next.memory.used, at: now)
 
         let smoothed = cpuSeries.average(since: now - 5) ?? load.total
@@ -269,8 +284,10 @@ final class SystemMonitor: ObservableObject {
     private func makeGraphs(now: TimeInterval) -> Graphs {
         Graphs(
             temperature: temperatureSeries.points(span: span, now: now),
-            networkDown: networkSeries.points(span: span, now: now),
-            diskIO: diskSeries.points(span: span, now: now),
+            networkDown: downloadSeries.points(span: span, now: now),
+            networkUp: uploadSeries.points(span: span, now: now),
+            diskRead: readSeries.points(span: span, now: now),
+            diskWrite: writeSeries.points(span: span, now: now),
             memoryUsed: memorySeries.points(span: span, now: now)
         )
     }

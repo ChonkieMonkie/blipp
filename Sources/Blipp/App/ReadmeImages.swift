@@ -129,6 +129,20 @@ enum ReadmeImages {
             ProcessUsage(pid: 2, name: "Music", cpu: 4),
             ProcessUsage(pid: 3, name: "Mail", cpu: 2),
         ])
+        // A few downloads with a little upload alongside, and disk bursts, quiet at the end so
+        // Blipp's mood in the picture isn't about traffic.
+        let start = ProcessInfo.processInfo.systemUptime
+        monitor.useExampleTraffic { now in
+            let t = now - start
+            func burst(_ at: Double, _ width: Double, _ height: Double) -> Double {
+                max(0, 1 - abs(t - at) / width) * height
+            }
+            let down = 30_000 + burst(12, 2, 3_800_000) + burst(31, 3, 2_400_000) + burst(48, 2, 4_500_000)
+            let up = 8_000 + burst(13, 2, 600_000) + burst(32, 4, 1_400_000) + burst(49, 1.5, 500_000)
+            let read = 150_000 + burst(8, 1.5, 22_000_000) + burst(33, 2, 14_000_000)
+            let write = 200_000 + burst(20, 2, 9_000_000) + burst(40, 3, 16_000_000) + burst(56, 1.5, 6_000_000)
+            return (down, up, read, write)
+        }
         monitor.setPanelVisible(true)
         RunLoop.main.run(until: Date().addingTimeInterval(65))
 

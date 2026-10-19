@@ -104,7 +104,9 @@ struct GraphPoint: Equatable {
 struct Graphs: Equatable {
     var temperature: [GraphPoint] = []
     var networkDown: [GraphPoint] = []
-    var diskIO: [GraphPoint] = []
+    var networkUp: [GraphPoint] = []
+    var diskRead: [GraphPoint] = []
+    var diskWrite: [GraphPoint] = []
     var memoryUsed: [GraphPoint] = []
 }
 

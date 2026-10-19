@@ -32,6 +32,8 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN_DIR/Blipp" "$APP/Contents/MacOS/Blipp"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
+# The GPL travels with every copy of the app.
+cp LICENSE "$APP/Contents/Resources/LICENSE"
 
 echo "→ Rendering app icon…"
 ICONSET="build/AppIcon.iconset"

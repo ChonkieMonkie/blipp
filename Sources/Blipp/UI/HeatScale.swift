@@ -76,10 +76,18 @@ struct HeatScale {
     static let blueLight: UInt32 = 0x7FB2F5
     static let blueMid: UInt32 = 0x3D7BF0
     static let blueDark: UInt32 = 0x3451C7
+    static let violetLight: UInt32 = 0xD3B8FA
+    static let violetMid: UInt32 = 0xA474F2
+    static let violetDark: UInt32 = 0x7A45D8
+    static let roseLight: UInt32 = 0xFDA4AF
+    static let roseMid: UInt32 = 0xF43F5E
+    static let roseDark: UInt32 = 0xBE123C
 
     static let cpu = HeatScale([(0, green), (50, yellow), (75, orange), (95, red)])
     static let temperature = HeatScale([(45, green), (62, yellow), (78, orange), (92, red)])
     static let memoryFraction = HeatScale([(0.5, green), (0.7, yellow), (0.85, orange), (0.97, red)])
     static let network = HeatScale([(0, blueLight), (3_000_000, blueMid), (20_000_000, blueDark)])
-    static let disk = HeatScale([(0, blueLight), (50_000_000, blueMid), (300_000_000, blueDark)])
+    static let upload = HeatScale([(0, violetLight), (3_000_000, violetMid), (20_000_000, violetDark)])
+    static let diskRead = HeatScale([(0, blueLight), (50_000_000, blueMid), (300_000_000, blueDark)])
+    static let diskWrite = HeatScale([(0, roseLight), (50_000_000, roseMid), (300_000_000, roseDark)])
 }

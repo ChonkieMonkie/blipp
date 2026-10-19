@@ -27,7 +27,9 @@ enum Format {
         switch bytesPerSecond {
         case ..<1_000: return "\(Int(bytesPerSecond.rounded())) B/s"
         case ..<1_000_000: return String(format: "%.0f KB/s", bytesPerSecond / 1_000)
-        case ..<1_000_000_000: return String(format: "%.1f MB/s", bytesPerSecond / 1_000_000)
+        case ..<100_000_000: return String(format: "%.1f MB/s", bytesPerSecond / 1_000_000)
+        // Whole megabytes from 100 up, so "176 MB/s" fits a tile without being squeezed.
+        case ..<1_000_000_000: return String(format: "%.0f MB/s", bytesPerSecond / 1_000_000)
         default: return String(format: "%.2f GB/s", bytesPerSecond / 1_000_000_000)
         }
     }

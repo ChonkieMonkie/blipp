@@ -36,6 +36,7 @@ Click him for a panel with the numbers behind his mood:
   (apps, wired, compressed, cached, swap, free).
 - **Battery:** charge, charging power in watts and time to full or empty. It also notices your charge limit.
 - **Temperature, network and disk:** live values with graphs whose color follows the value.
+  Network shows download and upload, and disk shows reads and writes, overlaid on one graph.
 - **Top processes:** what's using the most CPU right now, counted like Activity Monitor.
 
 ## Install
