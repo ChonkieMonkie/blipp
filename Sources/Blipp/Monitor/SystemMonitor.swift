@@ -16,7 +16,7 @@ final class SystemMonitor: ObservableObject {
     let coreLayout = CoreLayout.current
 
     private let prefs: Preferences
-    private let queue = DispatchQueue(label: "app.blipp.sampler", qos: .utility)
+    private let queue = DispatchQueue(label: "io.github.chonkiemonkie.blipp.sampler", qos: .utility)
     private var cancellables = Set<AnyCancellable>()
     private var powerSource: CFRunLoopSource?
 

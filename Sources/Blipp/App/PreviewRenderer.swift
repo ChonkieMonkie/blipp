@@ -101,7 +101,7 @@ enum PreviewRenderer {
 
     /// Runs the real monitor for a few seconds, then snapshots the panel with everything expanded.
     private static func renderPanel(to url: URL) {
-        let prefs = Preferences(defaults: UserDefaults(suiteName: "app.blipp.preview") ?? .standard)
+        let prefs = Preferences(defaults: UserDefaults(suiteName: "io.github.chonkiemonkie.blipp.preview") ?? .standard)
         prefs.graphInterval = 0.5
         let monitor = SystemMonitor(prefs: prefs)
         RunLoop.main.run(until: Date().addingTimeInterval(4))

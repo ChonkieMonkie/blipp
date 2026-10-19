@@ -77,6 +77,9 @@ final class Preferences: ObservableObject {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
+        if defaults === UserDefaults.standard {
+            Self.migrateFromOldBundleID(into: defaults)
+        }
         menuBarDisplay = MenuBarDisplay(rawValue: defaults.string(forKey: Keys.menuBarDisplay) ?? "") ?? .blippOnly
         iconStyle = IconStyle(rawValue: defaults.string(forKey: Keys.iconStyle) ?? "") ?? .color
         animateMenuBar = defaults.object(forKey: Keys.animateMenuBar) as? Bool ?? true
@@ -85,6 +88,21 @@ final class Preferences: ObservableObject {
         graphSpan = Self.pick(defaults.double(forKey: Keys.graphSpan), from: Self.graphSpans, fallback: 60)
         moodInterval = Self.pick(defaults.double(forKey: Keys.moodInterval), from: Self.moodIntervals, fallback: 2)
         clickAction = ClickAction(rawValue: defaults.string(forKey: Keys.clickAction) ?? "") ?? .showPanel
+    }
+
+    /// Blipp's first builds used the bundle ID `app.blipp.Blipp`; carry those settings over once.
+    private static func migrateFromOldBundleID(into defaults: UserDefaults) {
+        let marker = "migratedFromOldBundleID"
+        guard !defaults.bool(forKey: marker) else { return }
+        defaults.set(true, forKey: marker)
+        guard let old = defaults.persistentDomain(forName: "app.blipp.Blipp") else { return }
+        let keys = [
+            Keys.menuBarDisplay, Keys.iconStyle, Keys.animateMenuBar, Keys.randomizeVariants,
+            Keys.graphInterval, Keys.graphSpan, Keys.moodInterval, Keys.clickAction,
+        ]
+        for key in keys where defaults.object(forKey: key) == nil {
+            if let value = old[key] { defaults.set(value, forKey: key) }
+        }
     }
 
     private static func pick(_ value: Double, from options: [Double], fallback: Double) -> Double {
