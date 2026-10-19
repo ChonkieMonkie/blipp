@@ -60,10 +60,16 @@ struct SettingsView: View {
                     }
                 }
                 .pickerStyle(.segmented)
+                Picker("Network speed", selection: $prefs.networkUnit) {
+                    ForEach(NetworkUnit.allCases) { unit in
+                        Text(unit.title).tag(unit)
+                    }
+                }
+                .pickerStyle(.segmented)
             } header: {
                 Text("Graphs")
             } footer: {
-                Text("Applies to every graph in the panel. Faster updates use a little more energy.")
+                Text("Faster updates use a little more energy. Network speed in megabytes (MB/s) like Activity Monitor, or megabits (Mb/s) like internet plans.")
                     .foregroundStyle(.secondary)
             }
 

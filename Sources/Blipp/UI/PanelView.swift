@@ -166,14 +166,14 @@ struct PanelView: View {
                 .help("Thermal state: \(s.thermal.title)")
                 TrafficTile(
                     title: "Network",
-                    first: .init(label: "↓", name: "Download", rate: s.networkDown, points: graphs.networkDown, scale: .network, color: HeatScale.blueMid),
-                    second: .init(label: "↑", name: "Upload", rate: s.networkUp, points: graphs.networkUp, scale: .upload, color: HeatScale.violetMid),
+                    first: .init(label: "↓", name: "Download", text: Format.rate(s.networkDown, in: prefs.networkUnit), points: graphs.networkDown, scale: .network, color: HeatScale.blueMid),
+                    second: .init(label: "↑", name: "Upload", text: Format.rate(s.networkUp, in: prefs.networkUnit), points: graphs.networkUp, scale: .upload, color: HeatScale.violetMid),
                     floor: 1_000_000
                 )
                 TrafficTile(
                     title: "Disk · \(Format.diskSpace(s.diskFree))",
-                    first: .init(label: "R", name: "Read", rate: s.diskRead, points: graphs.diskRead, scale: .diskRead, color: HeatScale.blueMid),
-                    second: .init(label: "W", name: "Write", rate: s.diskWrite, points: graphs.diskWrite, scale: .diskWrite, color: HeatScale.roseMid),
+                    first: .init(label: "R", name: "Read", text: Format.rate(s.diskRead), points: graphs.diskRead, scale: .diskRead, color: HeatScale.blueMid),
+                    second: .init(label: "W", name: "Write", text: Format.rate(s.diskWrite), points: graphs.diskWrite, scale: .diskWrite, color: HeatScale.roseMid),
                     floor: 10_000_000
                 )
                 .help("\(Format.diskSpace(s.diskFree)) free on the startup disk")
@@ -657,7 +657,7 @@ private struct TrafficTile: View {
     struct Direction {
         let label: String
         let name: String
-        let rate: Double
+        let text: String
         let points: [GraphPoint]
         let scale: HeatScale
         let color: UInt32
@@ -704,14 +704,15 @@ private struct TrafficTile: View {
             Text(direction.label)
                 .foregroundStyle(Color(hex: direction.color))
                 .frame(width: 11, alignment: .leading)
-            Text(Format.rate(direction.rate))
+            Text(direction.text)
         }
-        .font(.system(size: 13, weight: .heavy, design: .rounded))
+        // 12 pt fits the widest speed ("99.9 MB/s") at full size, so both rows always match;
+        // letting each row shrink on its own made one of them smaller now and then.
+        .font(.system(size: 12, weight: .heavy, design: .rounded))
         .monospacedDigit()
         .lineLimit(1)
-        .minimumScaleFactor(0.7)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(direction.name) \(Format.rate(direction.rate))")
+        .accessibilityLabel("\(direction.name) \(direction.text)")
     }
 }
 

@@ -82,6 +82,7 @@ In the menu bar, Blipp is redrawn with thicker lines so he stays readable at 18 
 - **Style:** color, or monochrome to blend in with the system icons.
 - **Animation:** turn the menu bar animation on or off, and choose whether Blipp mixes up his animation variants.
 - **Graphs:** update every 0.5 to 5 seconds and show the last 30 seconds up to 1 hour.
+- **Network speed:** in megabytes (MB/s) like Activity Monitor, or megabits (Mb/s) like internet plans.
 - **Update Blipp every:** 1, 2 or 5 seconds, which sets how quickly his mood follows the numbers.
 - **Clicking Blipp:** open the panel or go straight to Activity Monitor.
 - **Launch at login.**

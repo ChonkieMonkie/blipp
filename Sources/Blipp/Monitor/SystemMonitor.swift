@@ -114,6 +114,10 @@ final class SystemMonitor: ObservableObject {
             .sink { [weak self] randomize in self?.moodEngine.randomize = randomize }
             .store(in: &cancellables)
 
+        prefs.$networkUnit
+            .sink { [weak self] unit in self?.moodEngine.networkUnit = unit }
+            .store(in: &cancellables)
+
         observePowerSource()
         observeScreens()
     }

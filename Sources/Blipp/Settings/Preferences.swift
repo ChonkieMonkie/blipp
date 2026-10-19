@@ -58,6 +58,20 @@ enum ClickAction: String, CaseIterable, Identifiable {
     }
 }
 
+/// How network speeds are written: bytes like Activity Monitor, or bits like internet plans.
+enum NetworkUnit: String, CaseIterable, Identifiable {
+    case bytes, bits
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .bytes: return "MB/s"
+        case .bits: return "Mb/s"
+        }
+    }
+}
+
 /// User settings, persisted in UserDefaults.
 final class Preferences: ObservableObject {
     static let graphIntervals: [Double] = [0.5, 1, 2, 5]
@@ -90,6 +104,9 @@ final class Preferences: ObservableObject {
     @Published var clickAction: ClickAction {
         didSet { defaults.set(clickAction.rawValue, forKey: Keys.clickAction) }
     }
+    @Published var networkUnit: NetworkUnit {
+        didSet { defaults.set(networkUnit.rawValue, forKey: Keys.networkUnit) }
+    }
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -104,6 +121,7 @@ final class Preferences: ObservableObject {
         graphSpan = Self.pick(defaults.double(forKey: Keys.graphSpan), from: Self.graphSpans, fallback: 60)
         moodInterval = Self.pick(defaults.double(forKey: Keys.moodInterval), from: Self.moodIntervals, fallback: 2)
         clickAction = ClickAction(rawValue: defaults.string(forKey: Keys.clickAction) ?? "") ?? .showPanel
+        networkUnit = NetworkUnit(rawValue: defaults.string(forKey: Keys.networkUnit) ?? "") ?? .bytes
     }
 
     /// Blipp's first builds used the bundle ID `app.blipp.Blipp`; carry those settings over once.
@@ -151,5 +169,6 @@ final class Preferences: ObservableObject {
         static let graphSpan = "graphSpan"
         static let moodInterval = "moodInterval"
         static let clickAction = "clickAction"
+        static let networkUnit = "networkUnit"
     }
 }

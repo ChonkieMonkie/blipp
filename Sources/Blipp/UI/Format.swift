@@ -24,13 +24,26 @@ enum Format {
     }
 
     static func rate(_ bytesPerSecond: Double) -> String {
-        switch bytesPerSecond {
-        case ..<1_000: return "\(Int(bytesPerSecond.rounded())) B/s"
-        case ..<1_000_000: return String(format: "%.0f KB/s", bytesPerSecond / 1_000)
-        case ..<100_000_000: return String(format: "%.1f MB/s", bytesPerSecond / 1_000_000)
-        // Whole megabytes from 100 up, so "176 MB/s" fits a tile without being squeezed.
-        case ..<1_000_000_000: return String(format: "%.0f MB/s", bytesPerSecond / 1_000_000)
-        default: return String(format: "%.2f GB/s", bytesPerSecond / 1_000_000_000)
+        scaled(bytesPerSecond, units: ["B/s", "KB/s", "MB/s", "GB/s"])
+    }
+
+    /// Network speed in the unit the user picked: "1.2 MB/s", or eight times that as "9.6 Mb/s".
+    static func rate(_ bytesPerSecond: Double, in unit: NetworkUnit) -> String {
+        switch unit {
+        case .bytes: return rate(bytesPerSecond)
+        case .bits: return scaled(bytesPerSecond * 8, units: ["b/s", "kb/s", "Mb/s", "Gb/s"])
+        }
+    }
+
+    /// Picks the unit (×1000 per step) and the decimals, the same way for bytes and bits.
+    private static func scaled(_ value: Double, units: [String]) -> String {
+        switch value {
+        case ..<1_000: return "\(Int(value.rounded())) \(units[0])"
+        case ..<1_000_000: return String(format: "%.0f %@", value / 1_000, units[1])
+        case ..<100_000_000: return String(format: "%.1f %@", value / 1_000_000, units[2])
+        // Whole megas from 100 up, so "176 MB/s" fits a tile without being squeezed.
+        case ..<1_000_000_000: return String(format: "%.0f %@", value / 1_000_000, units[2])
+        default: return String(format: "%.2f %@", value / 1_000_000_000, units[3])
         }
     }
 

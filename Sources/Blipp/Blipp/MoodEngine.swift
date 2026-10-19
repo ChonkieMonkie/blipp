@@ -52,6 +52,7 @@ final class MoodEngine {
     enum MemoryMood { case plenty, juggling, dropping, swapping }
 
     var randomize = true
+    var networkUnit = NetworkUnit.bytes
 
     private var chargeVariant = 0
     private var chillVariant = 0
@@ -255,9 +256,9 @@ final class MoodEngine {
         } else if level == .working {
             text = ("Working on it", defaultSubtitle)
         } else if scene.hands == .catchBox {
-            text = ("Catching packages", "Downloading at \(Format.rate(s.networkDown))")
+            text = ("Catching packages", "Downloading at \(Format.rate(s.networkDown, in: networkUnit))")
         } else if scene.hands == .plane {
-            text = ("Sending paper planes", "Uploading at \(Format.rate(s.networkUp))")
+            text = ("Sending paper planes", "Uploading at \(Format.rate(s.networkUp, in: networkUnit))")
         } else if diskFull {
             text = ("My cheeks are stuffed!", "Only \(Int((s.diskFreeFraction * 100).rounded()))% disk space left")
         } else if scene.hands == .papers {
