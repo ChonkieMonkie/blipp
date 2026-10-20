@@ -85,7 +85,7 @@ struct PanelView: View {
             ZStack {
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
                     .fill(Color(hex: monitor.mood.scene.color).opacity(0.28))
-                BlippView(scene: monitor.mood.scene, size: 50)
+                BlippView(scene: monitor.mood.scene, size: 50, variedIntro: prefs.randomizeVariants)
                     .offset(y: -2)
             }
             .frame(width: 72, height: 72)

@@ -21,7 +21,7 @@ import Foundation
 /// details so it stays readable at 18 pt. In template mode the face is cut out of a
 /// solid silhouette so macOS can tint it like any system icon.
 enum MenuBarRenderer {
-    private enum Eyes { case dots, dotsUp, closed, happy, squint, glasses, panic, tired, dead, wink }
+    private enum Eyes { case dots, focused, closed, happy, squint, glasses, panic, dead, wink }
     private enum Mouth { case smile, open, small, flat, frown, wavy, oval }
 
     static let blinkPeriod = 6.0
@@ -72,11 +72,12 @@ enum MenuBarRenderer {
         return next
     }
 
-    static func draw(_ scene: BlippScene, in cg: CGContext, size: CGFloat, template: Bool, time t: Double) {
+    /// `template` draws a solid silhouette in `monoInk` with the face cut out, like a system icon.
+    static func draw(_ scene: BlippScene, in cg: CGContext, size: CGFloat, template: Bool, monoInk: UInt32 = 0x000000, time t: Double) {
         cg.saveGState()
         cg.scaleBy(x: size / 64, y: size / 64)
         let p = Painter(cg: cg)
-        let ink = template ? UInt32(0x000000) : Palette.ink
+        let ink = template ? monoInk : Palette.ink
 
         let puddle = scene.shape == .puddle
         let body = puddle
@@ -84,7 +85,7 @@ enum MenuBarRenderer {
             : "M32 8C49 8 58 20 58 36C58 51 47 59 32 59C17 59 6 51 6 36C6 20 15 8 32 8Z"
 
         if template {
-            p.fill(body, 0x000000)
+            p.fill(body, monoInk)
         } else {
             p.fill(body, scene.color)
             p.stroke(body, Palette.ink, width: 3.5)
@@ -100,11 +101,17 @@ enum MenuBarRenderer {
         }
         cg.setBlendMode(.normal)
 
-        if !template, scene.sweat {
+        // Sweat means hot, in color and in monochrome alike.
+        if scene.sweat {
             let step = floor((t / sweatPeriod).truncatingRemainder(dividingBy: 1) * Double(sweatFrames))
             let c = CGFloat(step / Double(sweatFrames))
             p.group(CGAffineTransform(translationX: 0, y: 6 * c), alpha: c < 0.8 ? 1 : (1 - c) / 0.2) {
-                p.shape("M55 4C55 4 60 10 60 13A5 5 0 0 1 50 13C50 10 55 4 55 4Z", fill: Palette.sweat, width: 2.5)
+                let drop = "M55 4C55 4 60 10 60 13A5 5 0 0 1 50 13C50 10 55 4 55 4Z"
+                if template {
+                    p.fill(drop, monoInk)
+                } else {
+                    p.shape(drop, fill: Palette.sweat, width: 2.5)
+                }
             }
         }
         cg.restoreGState()
@@ -115,20 +122,16 @@ enum MenuBarRenderer {
         case .smile: return (.dots, .smile)
         case .sleeping: return (.closed, .small)
         case .sunglasses: return (.glasses, .smile)
-        case .focused, .determined: return (.dots, .flat)
+        case .focused: return (.focused, .flat)
         case .sweaty: return (.squint, .open)
         case .panic: return (.panic, .oval)
-        case .happyClosed, .chewing: return (.happy, .small)
-        case .content: return (.happy, .open)
-        case .pleased, .relieved: return (.happy, .smile)
-        case .tired: return (.tired, .small)
         case .dead: return (.dead, .wavy)
-        case .dizzy, .boiling: return (.squint, .wavy)
-        case .lookingUp: return (.dotsUp, .small)
-        case .licking: return (.squint, .smile)
-        case .excited: return (.dots, .open)
+        case .boiling: return (.squint, .wavy)
+        case .happyClosed: return (.happy, .small)
         case .wink: return (.wink, .smile)
-        case .sad: return (.dots, .frown)
+        case .excited: return (.dots, .open)
+        case .yawn: return (.closed, .oval)
+        case .relieved: return (.happy, .smile)
         case .surprised: return (.panic, .small)
         }
     }
@@ -137,8 +140,11 @@ enum MenuBarRenderer {
         // A quick blink every few seconds keeps the icon alive without being distracting.
         let blinking = isBlinking(at: t)
         switch eyes {
-        case .dots, .dotsUp:
-            let y: CGFloat = eyes == .dotsUp ? 32 : 35
+        case .dots, .focused:
+            let y: CGFloat = eyes == .focused ? 36 : 35
+            if eyes == .focused {
+                p.stroke("M17 26L28 29M47 26L36 29", ink, width: 4.2)
+            }
             if blinking {
                 p.stroke("M19 \(y)H29M35 \(y)H45", ink, width: 4)
             } else {
@@ -160,8 +166,8 @@ enum MenuBarRenderer {
                 p.circle(24, 35, 6.5, fill: ink)
                 p.circle(40, 35, 6.5, fill: ink)
                 p.cg.setBlendMode(.normal)
-                p.circle(24, 35, 2.5, fill: 0x000000)
-                p.circle(40, 35, 2.5, fill: 0x000000)
+                p.circle(24, 35, 2.5, fill: ink)
+                p.circle(40, 35, 2.5, fill: ink)
                 p.cg.setBlendMode(.clear)
             } else {
                 p.circle(24, 35, 6.5, fill: Palette.white, stroke: ink, width: 2.5)
@@ -169,10 +175,6 @@ enum MenuBarRenderer {
                 p.circle(24, 35, 2.5, fill: ink)
                 p.circle(40, 35, 2.5, fill: ink)
             }
-        case .tired:
-            p.stroke("M18 36H30M34 36H46", ink, width: 4)
-            p.fill("M20 36A4 4 0 0 0 28 36Z", ink)
-            p.fill("M36 36A4 4 0 0 0 44 36Z", ink)
         case .dead:
             p.stroke("M20 31L28 39M28 31L20 39M36 31L44 39M44 31L36 39", ink, width: 4)
         case .wink:

@@ -25,12 +25,22 @@ struct SettingsView: View {
     var body: some View {
         Form {
             Section("Menu bar") {
-                Picker("Show next to Blipp", selection: $prefs.menuBarDisplay) {
-                    ForEach(MenuBarDisplay.allCases) { option in
+                Picker("Speech bubble", selection: $prefs.speechBubble) {
+                    ForEach(SpeechBubble.allCases) { option in
                         Text(option.title).tag(option)
                     }
                 }
-                .pickerStyle(.radioGroup)
+                .pickerStyle(.segmented)
+                Text("Next to Blipp, the one thing worth knowing right now: low battery, offline, memory, charging, network or disk. Emergencies show even when it's off.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Toggle("Show low battery", isOn: $prefs.bubbleShowsBattery)
+                Toggle("Show charging", isOn: $prefs.bubbleShowsCharging)
+                Toggle("Show offline", isOn: $prefs.bubbleShowsOffline)
+                Text("macOS already shows these in the menu bar. Turn them off so Blipp doesn't say the same thing twice. Turning off low battery also hides the empty battery warning.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
 
                 Picker("Style", selection: $prefs.iconStyle) {
                     ForEach(IconStyle.allCases) { style in
@@ -99,11 +109,30 @@ struct SettingsView: View {
                     Spacer()
                     Button("Quit Blipp") { NSApp.terminate(nil) }
                 }
+                // The legal notices the GPL asks interactive programs to show.
+                HStack {
+                    Text("© 2026 Anton Gedda. Free software under the GNU GPL v3 or later, with no warranty.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button("License") { Self.openLicense() }
+                        .controlSize(.small)
+                }
             }
         }
         .formStyle(.grouped)
         .frame(width: 480)
         .fixedSize(horizontal: false, vertical: true)
+    }
+
+    /// Opens the copy of the license that ships inside the app, or the GNU website without one.
+    private static func openLicense() {
+        if let url = Bundle.main.url(forResource: "LICENSE", withExtension: nil) {
+            NSWorkspace.shared.open([url], withApplicationAt: URL(fileURLWithPath: "/System/Applications/TextEdit.app"),
+                                    configuration: NSWorkspace.OpenConfiguration())
+        } else if let url = URL(string: "https://www.gnu.org/licenses/gpl-3.0.html") {
+            NSWorkspace.shared.open(url)
+        }
     }
 }
 

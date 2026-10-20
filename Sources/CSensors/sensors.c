@@ -107,45 +107,196 @@ static double blipp_read(IOHIDServiceClientRef service) {
     return (value > 0 && value < 150) ? value : -1;
 }
 
-// Latest reading per die sensor. Each call refreshes only a slice of them (round robin),
-// because every read is an IPC round trip and die temperatures move slowly.
-static double *sDieValues = NULL;
-static CFIndex sDieCursor = 0;
+// The SMC's CPU core sensors (keys "Tp…" for performance cores, "Te…" for efficiency
+// cores) sit right on the cores. The HID die sensors above are spread over the whole
+// chip and read 20 °C or more below the cores under load, so the SMC is preferred.
+typedef struct {
+    uint8_t major, minor, build, reserved;
+    uint16_t release;
+} BlippSMCVersion;
+
+typedef struct {
+    uint16_t version, length;
+    uint32_t cpuLimit, gpuLimit, memoryLimit;
+} BlippSMCLimits;
+
+typedef struct {
+    uint32_t dataSize, dataType;
+    uint8_t dataAttributes;
+} BlippSMCKeyInfo;
+
+typedef struct {
+    uint32_t key;
+    BlippSMCVersion version;
+    BlippSMCLimits limits;
+    BlippSMCKeyInfo keyInfo;
+    uint8_t result, status, command;
+    uint32_t data32;
+    uint8_t bytes[32];
+} BlippSMCParams;
+
+enum { kBlippSMCReadBytes = 5, kBlippSMCReadIndex = 8, kBlippSMCReadKeyInfo = 9 };
+
+typedef struct {
+    uint32_t key;
+    BlippSMCKeyInfo info;
+} BlippSMCSensor;
+
+static io_connect_t sSMC = 0;
+static BlippSMCSensor *sCoreSensors = NULL;
+static CFIndex sCoreCount = 0;
+
+static uint32_t blipp_fourcc(const char *code) {
+    return ((uint32_t)code[0] << 24) | ((uint32_t)code[1] << 16) | ((uint32_t)code[2] << 8) | (uint32_t)code[3];
+}
+
+static int blipp_smc_call(BlippSMCParams *input, BlippSMCParams *output) {
+    size_t size = sizeof *output;
+    kern_return_t result = IOConnectCallStructMethod(sSMC, 2, input, sizeof *input, output, &size);
+    return result == KERN_SUCCESS && output->result == 0;
+}
+
+static void blipp_smc_setup(void) {
+    static int done = 0;
+    if (done) {
+        return;
+    }
+    done = 1;
+
+    io_service_t service = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("AppleSMC"));
+    if (service == 0) {
+        return;
+    }
+    kern_return_t opened = IOServiceOpen(service, mach_task_self(), 0, &sSMC);
+    IOObjectRelease(service);
+    if (opened != KERN_SUCCESS) {
+        sSMC = 0;
+        return;
+    }
+
+    // Walk the SMC's key list once and keep the float core sensors.
+    BlippSMCParams input = {0}, output = {0};
+    input.key = blipp_fourcc("#KEY");
+    input.command = kBlippSMCReadKeyInfo;
+    if (!blipp_smc_call(&input, &output)) {
+        return;
+    }
+    input.keyInfo = output.keyInfo;
+    input.command = kBlippSMCReadBytes;
+    if (!blipp_smc_call(&input, &output)) {
+        return;
+    }
+    uint32_t keyCount = ((uint32_t)output.bytes[0] << 24) | ((uint32_t)output.bytes[1] << 16) |
+                        ((uint32_t)output.bytes[2] << 8) | (uint32_t)output.bytes[3];
+
+    CFIndex capacity = 0;
+    for (uint32_t index = 0; index < keyCount; index++) {
+        memset(&input, 0, sizeof input);
+        input.command = kBlippSMCReadIndex;
+        input.data32 = index;
+        if (!blipp_smc_call(&input, &output)) {
+            continue;
+        }
+        uint32_t key = output.key;
+        char first = (char)(key >> 24), second = (char)(key >> 16);
+        if (first != 'T' || (second != 'p' && second != 'e')) {
+            continue;
+        }
+
+        memset(&input, 0, sizeof input);
+        input.key = key;
+        input.command = kBlippSMCReadKeyInfo;
+        if (!blipp_smc_call(&input, &output) || output.keyInfo.dataType != blipp_fourcc("flt ") ||
+            output.keyInfo.dataSize != 4) {
+            continue;
+        }
+
+        if (sCoreCount == capacity) {
+            capacity = capacity == 0 ? 32 : capacity * 2;
+            BlippSMCSensor *grown = realloc(sCoreSensors, (size_t)capacity * sizeof *grown);
+            if (grown == NULL) {
+                break;
+            }
+            sCoreSensors = grown;
+        }
+        sCoreSensors[sCoreCount++] = (BlippSMCSensor){key, output.keyInfo};
+    }
+}
+
+static double blipp_read_core(CFIndex i) {
+    BlippSMCParams input = {0}, output = {0};
+    input.key = sCoreSensors[i].key;
+    input.keyInfo = sCoreSensors[i].info;
+    input.command = kBlippSMCReadBytes;
+    if (!blipp_smc_call(&input, &output)) {
+        return -1;
+    }
+    float value;
+    memcpy(&value, output.bytes, sizeof value);
+    return (value > 0 && value < 150) ? value : -1;
+}
+
+static double blipp_read_die(CFIndex i) {
+    return blipp_read((IOHIDServiceClientRef)CFArrayGetValueAtIndex(sDieSensors, i));
+}
+
+// Keeps the latest reading per sensor. Each call refreshes only a slice of them
+// (round robin), because every read is an IPC round trip and temperatures move slowly.
+typedef struct {
+    double *values;
+    CFIndex cursor;
+} BlippSensorCache;
+
+static double blipp_average(BlippSensorCache *cache, CFIndex count, int budget, double (*read)(CFIndex)) {
+    CFIndex reads = budget < 1 ? 1 : budget;
+    if (cache->values == NULL) {
+        cache->values = calloc((size_t)count, sizeof(double));
+        if (cache->values == NULL) {
+            return -1;
+        }
+        reads = count;  // first call: read everything once
+    }
+    if (reads > count) {
+        reads = count;
+    }
+    for (CFIndex n = 0; n < reads; n++) {
+        CFIndex i = (cache->cursor + n) % count;
+        double value = read(i);
+        if (value > 0) {
+            cache->values[i] = value;
+        }
+    }
+    cache->cursor = (cache->cursor + reads) % count;
+
+    double sum = 0;
+    int valid = 0;
+    for (CFIndex i = 0; i < count; i++) {
+        if (cache->values[i] > 0) {
+            sum += cache->values[i];
+            valid++;
+        }
+    }
+    return valid > 0 ? sum / valid : -1;
+}
+
+static BlippSensorCache sCoreCache = {0};
+static BlippSensorCache sDieCache = {0};
 
 double blipp_cpu_temperature(int budget) {
-    blipp_setup();
+    blipp_smc_setup();
+    if (sCoreCount > 0) {
+        double value = blipp_average(&sCoreCache, sCoreCount, budget, blipp_read_core);
+        if (value > 0) {
+            return value;
+        }
+    }
 
+    blipp_setup();
     CFIndex dieCount = sDieSensors != NULL ? CFArrayGetCount(sDieSensors) : 0;
     if (dieCount > 0) {
-        CFIndex reads = budget < 1 ? 1 : budget;
-        if (sDieValues == NULL) {
-            sDieValues = calloc((size_t)dieCount, sizeof(double));
-            reads = dieCount;  // first call: read everything once
-        }
-        if (reads > dieCount) {
-            reads = dieCount;
-        }
-        if (sDieValues != NULL) {
-            for (CFIndex n = 0; n < reads; n++) {
-                CFIndex i = (sDieCursor + n) % dieCount;
-                double value = blipp_read((IOHIDServiceClientRef)CFArrayGetValueAtIndex(sDieSensors, i));
-                if (value > 0) {
-                    sDieValues[i] = value;
-                }
-            }
-            sDieCursor = (sDieCursor + reads) % dieCount;
-
-            double sum = 0;
-            int count = 0;
-            for (CFIndex i = 0; i < dieCount; i++) {
-                if (sDieValues[i] > 0) {
-                    sum += sDieValues[i];
-                    count++;
-                }
-            }
-            if (count > 0) {
-                return sum / count;
-            }
+        double value = blipp_average(&sDieCache, dieCount, budget, blipp_read_die);
+        if (value > 0) {
+            return value;
         }
     }
 
@@ -162,6 +313,11 @@ double blipp_cpu_temperature(int budget) {
         }
     }
     return hottest;
+}
+
+int blipp_core_sensor_count(void) {
+    blipp_smc_setup();
+    return (int)sCoreCount;
 }
 
 int blipp_die_sensor_count(void) {

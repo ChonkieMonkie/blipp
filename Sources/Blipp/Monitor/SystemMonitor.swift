@@ -118,6 +118,16 @@ final class SystemMonitor: ObservableObject {
             .sink { [weak self] unit in self?.moodEngine.networkUnit = unit }
             .store(in: &cancellables)
 
+        Publishers.CombineLatest3(prefs.$bubbleShowsCharging, prefs.$bubbleShowsBattery, prefs.$bubbleShowsOffline)
+            .sink { [weak self] charging, battery, offline in
+                var hidden: Set<MenuBubble.Kind> = []
+                if !charging { hidden.insert(.charging) }
+                if !battery { hidden.formUnion([.low, .empty]) }
+                if !offline { hidden.insert(.offline) }
+                self?.queue.async { self?.moodEngine.hiddenBubbles = hidden }
+            }
+            .store(in: &cancellables)
+
         observePowerSource()
         observeScreens()
     }
@@ -143,6 +153,11 @@ final class SystemMonitor: ObservableObject {
     /// The panel shows graphs, processes and live battery details, so it gets them at full rate.
     func setPanelVisible(_ visible: Bool) {
         panelOnScreen = visible
+        if visible {
+            // A fresh headline every time the panel opens.
+            moodEngine.reshuffle()
+            lastMoodUpdate = -.infinity
+        }
         queue.async { [weak self] in
             guard let self, self.panelVisible != visible else { return }
             self.panelVisible = visible
@@ -311,8 +326,8 @@ final class SystemMonitor: ObservableObject {
         if due {
             lastMoodUpdate = now
             if next != mood { mood = next }
-        } else if next.subtitle != mood.subtitle,
-                  next.title == mood.title || (next.subtitleIsCPULine && mood.subtitleIsCPULine) {
+        } else if next.situation == mood.situation, next.subtitle != mood.subtitle {
+            // Only the panel's subtitle follows every sample; Blipp and his bubble keep their pace.
             mood.subtitle = next.subtitle
         }
     }

@@ -17,13 +17,17 @@
 #ifndef CSENSORS_H
 #define CSENSORS_H
 
-/// Average SoC die temperature in °C, read from the chip's HID thermal sensors.
+/// Average CPU core temperature in °C, read from the SMC's core sensors, or from the
+/// chip's HID die sensors when the SMC has none.
 /// Every sensor read is a slow round trip, so each call reads only `budget` sensors
 /// (round robin) and averages them with the latest values of the rest.
 /// Returns a negative value when no sensor could be read.
 double blipp_cpu_temperature(int budget);
 
-/// Number of CPU die sensors found (for diagnostics).
+/// Number of SMC CPU core sensors found (for diagnostics).
+int blipp_core_sensor_count(void);
+
+/// Number of HID die sensors found (for diagnostics).
 int blipp_die_sensor_count(void);
 
 /// Prints every temperature sensor and its value (diagnostics).

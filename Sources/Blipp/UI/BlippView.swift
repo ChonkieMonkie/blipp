@@ -27,10 +27,13 @@ struct BlippView: NSViewRepresentable {
     /// Size of Blipp's 64-unit body box. The view adds headroom for things above his head.
     var size: CGFloat
     var animated = true
+    /// Pick a random opening animation each time (otherwise always the first that fits).
+    var variedIntro = true
 
     func makeNSView(context: Context) -> BlippCanvasView {
         let view = BlippCanvasView(scene: scene, blippSize: size)
         view.animated = animated
+        view.variedIntro = variedIntro
         return view
     }
 
@@ -59,6 +62,7 @@ final class BlippCanvasView: NSView {
     var animated = true {
         didSet { if animated != oldValue { updateTimer() } }
     }
+    var variedIntro = true
 
     private let blippLayer = BlippLayer()
     private var timer: Timer?
@@ -96,6 +100,11 @@ final class BlippCanvasView: NSView {
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         blippLayer.contentsScale = window?.backingScaleFactor ?? 2
+        // Every time the panel opens, Blipp greets you with a little animation that fits his state.
+        if window != nil, shouldAnimate {
+            blippLayer.intro = BlippIntro.random(for: blippLayer.scene, varied: variedIntro)
+            blippLayer.introStart = ProcessInfo.processInfo.systemUptime
+        }
         updateTimer()
     }
 
@@ -129,6 +138,8 @@ private final class BlippLayer: CALayer {
     var scene = BlippScene()
     var blippSize: CGFloat = 50
     var animated = true
+    var intro: BlippIntro.Kind?
+    var introStart: TimeInterval = 0
 
     override init() {
         super.init()
@@ -142,6 +153,8 @@ private final class BlippLayer: CALayer {
             scene = other.scene
             blippSize = other.blippSize
             animated = other.animated
+            intro = other.intro
+            introStart = other.introStart
         }
     }
 
@@ -152,8 +165,14 @@ private final class BlippLayer: CALayer {
         // Layers draw with a bottom-left origin; Blipp is designed top-down.
         ctx.translateBy(x: 0, y: bounds.height)
         ctx.scaleBy(x: 1, y: -1)
-        let time = animated ? ProcessInfo.processInfo.systemUptime : 0.4
+        let now = ProcessInfo.processInfo.systemUptime
+        let time = animated ? now : 0.4
         let origin = CGPoint(x: (bounds.width - blippSize) / 2, y: bounds.height - blippSize * 1.02)
-        BlippRenderer.draw(scene, in: ctx, origin: origin, size: blippSize, time: time)
+        var playing: BlippIntro?
+        if animated, let intro {
+            let progress = (now - introStart) / BlippIntro.duration
+            if progress < 1 { playing = BlippIntro(kind: intro, progress: max(0, progress)) } else { self.intro = nil }
+        }
+        BlippRenderer.draw(scene, in: ctx, origin: origin, size: blippSize, time: time, intro: playing)
     }
 }

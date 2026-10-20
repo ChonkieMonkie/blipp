@@ -35,11 +35,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     private struct IconKey: Equatable {
         var scene: BlippScene
         var style: IconStyle
-        var accessory: MenuBarIcon.Accessory
-        var bars: [Int]
-        var title: String
+        var bubble: MenuBubble?
+        var bubbleStyle: SpeechBubble
+        var dark: Bool
         var frame: Int
     }
+    private var appearanceObservation: NSKeyValueObservation?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -47,11 +48,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             button.target = self
             button.action = #selector(statusItemClicked)
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
-            button.imagePosition = .imageLeft
+            button.imagePosition = .imageOnly
             button.setAccessibilityLabel("Blipp")
             // The tooltip text is asked for only when the pointer hovers, so a changing
             // subtitle never forces the menu bar to refresh.
             button.addToolTip(button.bounds, owner: self, userData: nil)
+            // A monochrome emergency is drawn in the menu bar's own text color, so follow its appearance.
+            appearanceObservation = button.observe(\.effectiveAppearance) { [weak self] _, _ in
+                DispatchQueue.main.async { self?.refreshStatusItem() }
+            }
             button.postsFrameChangedNotifications = true
             NotificationCenter.default.publisher(for: NSView.frameDidChangeNotification, object: button)
                 .sink { [weak button, weak self] _ in
@@ -66,10 +71,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         popover.animates = true
         popover.delegate = self
 
+        // Everything the menu bar shows comes from the mood, at the "Update Blipp every" pace.
         monitor.$mood
-            .combineLatest(monitor.$snapshot)
             .receive(on: RunLoop.main)
-            .sink { [weak self] _, _ in self?.refreshStatusItem() }
+            .sink { [weak self] _ in self?.refreshStatusItem() }
             .store(in: &cancellables)
 
         prefs.objectWillChange
@@ -106,70 +111,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
     private func refreshStatusItem() {
         guard let button = statusItem?.button else { return }
-        let snapshot = monitor.snapshot
         let scene = monitor.mood.scene
         let animate = prefs.animateMenuBar
         let time = animate ? ProcessInfo.processInfo.systemUptime : MenuBarRenderer.stillTime
 
-        var accessory = MenuBarIcon.Accessory.none
-        if let battery = snapshot.battery {
-            if battery.isCharging {
-                accessory = .bolt
-            } else if !battery.onAC && battery.percent < 20 {
-                accessory = .lowBattery
-            }
-        }
-
-        var bars: (cpu: Double, memory: Double)?
-        var title = ""
-        switch prefs.menuBarDisplay {
-        case .blippOnly:
-            break
-        case .cpuPercent:
-            title = Self.fixedWidthPercent(snapshot.cpuTotal)
-        case .miniBars:
-            bars = (snapshot.cpuTotal / 100, snapshot.memory.usedFraction)
-        case .batteryPercent:
-            if let battery = snapshot.battery { title = Self.fixedWidthPercent(Double(battery.percent)) }
-        }
+        let bubbleStyle = prefs.speechBubble
+        var bubble = MenuBarIcon.shownBubble(monitor.mood.bubble, style: bubbleStyle)
+        // Only the value bubble shows numbers, so the symbol bubble needn't redraw when they change.
+        if bubbleStyle != .symbolAndValue { bubble?.value = "" }
+        let dark = button.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
 
         let key = IconKey(
             scene: scene,
             style: prefs.iconStyle,
-            accessory: accessory,
-            bars: bars.map { [Int($0.cpu * 14), Int($0.memory * 14)] } ?? [],
-            title: title,
+            bubble: bubble,
+            bubbleStyle: bubbleStyle,
+            dark: dark,
             frame: MenuBarRenderer.frame(for: scene, time: time)
         )
         scheduleNextFrame(scene: scene, time: time, animate: animate)
         guard key != lastIconKey else { return }
         lastIconKey = key
-
-        button.image = MenuBarIcon.image(scene: scene, style: prefs.iconStyle, accessory: accessory, bars: bars, time: time)
-
-        if title.isEmpty {
-            if !button.title.isEmpty { button.title = "" }
-        } else {
-            let attributed = NSAttributedString(
-                string: " " + title,
-                attributes: [.font: NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .medium)]
-            )
-            if button.attributedTitle != attributed {
-                button.attributedTitle = attributed
-            }
-        }
+        button.image = MenuBarIcon.image(scene: scene, style: prefs.iconStyle, bubble: bubble, bubbleStyle: bubbleStyle, darkMenuBar: dark, time: time)
     }
 
     func view(_ view: NSView, stringForToolTip tag: NSView.ToolTipTag, point: NSPoint, userData data: UnsafeMutableRawPointer?) -> String {
         "\(monitor.mood.title) – \(monitor.mood.subtitle)"
-    }
-
-    /// "9%", "42%" and "100%" all take the same width: the number is padded with figure spaces,
-    /// which are exactly as wide as a digit, so neither Blipp nor the icons next to him move
-    /// when the value gains or loses a digit.
-    private static func fixedWidthPercent(_ value: Double) -> String {
-        let digits = String(Int(min(100, max(0, value)).rounded()))
-        return digits + "%" + String(repeating: "\u{2007}", count: max(0, 3 - digits.count))
     }
 
     /// Wakes up exactly when the icon's next animation frame is due (a blink, a sweat drop)

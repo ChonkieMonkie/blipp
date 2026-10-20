@@ -20,7 +20,8 @@ import Foundation
 /// Developer tool: `Blipp --benchmark` times every sampler so optimizations can be measured.
 enum Benchmark {
     static func run(iterations: Int = 40) {
-        print("Die sensors found: \(blipp_die_sensor_count())")
+        print("Core sensors found: \(blipp_core_sensor_count()), die sensors: \(blipp_die_sensor_count())")
+        print(String(format: "CPU temperature: %.1f °C", blipp_cpu_temperature(Int32.max)))
         if CommandLine.arguments.contains("--sensors") { blipp_debug_dump_sensors() }
 
         func time(_ name: String, warmup: Int = 2, _ body: () -> Void) {
@@ -58,7 +59,7 @@ enum Benchmark {
         let snapshot = Snapshot()
         time("Mood") { _ = engine.mood(for: snapshot, smoothedCPU: 40) }
 
-        let scene = BlippScene(face: .sweaty, sweat: true)
+        let scene = BlippScene(color: Palette.orange, face: .sweaty, work: .strong, heat: .sweat, head: .juggle3, network: .both, disk: .both, sticker: .juice)
         let context = IconExporter.makeContext(width: 36, height: 36)
         time("Menu bar icon draw") { MenuBarRenderer.draw(scene, in: context, size: 18, template: false, time: 1) }
         let panelContext = IconExporter.makeContext(width: 130, height: 130)

@@ -17,17 +17,17 @@
 import Combine
 import Foundation
 
-enum MenuBarDisplay: String, CaseIterable, Identifiable {
-    case blippOnly, cpuPercent, miniBars, batteryPercent
+/// What Blipp says next to himself in the menu bar.
+enum SpeechBubble: String, CaseIterable, Identifiable {
+    case off, symbol, symbolAndValue
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
-        case .blippOnly: return "Blipp only"
-        case .cpuPercent: return "Blipp + CPU %"
-        case .miniBars: return "Blipp + mini bars"
-        case .batteryPercent: return "Blipp + battery %"
+        case .off: return "Off"
+        case .symbol: return "Symbol"
+        case .symbolAndValue: return "Symbol and value"
         }
     }
 }
@@ -80,8 +80,19 @@ final class Preferences: ObservableObject {
 
     private let defaults: UserDefaults
 
-    @Published var menuBarDisplay: MenuBarDisplay {
-        didSet { defaults.set(menuBarDisplay.rawValue, forKey: Keys.menuBarDisplay) }
+    @Published var speechBubble: SpeechBubble {
+        didSet { defaults.set(speechBubble.rawValue, forKey: Keys.speechBubble) }
+    }
+    /// macOS already shows charging, battery level and Wi-Fi in the menu bar, so each of these
+    /// bubbles can be turned off to avoid saying the same thing twice.
+    @Published var bubbleShowsCharging: Bool {
+        didSet { defaults.set(bubbleShowsCharging, forKey: Keys.bubbleShowsCharging) }
+    }
+    @Published var bubbleShowsBattery: Bool {
+        didSet { defaults.set(bubbleShowsBattery, forKey: Keys.bubbleShowsBattery) }
+    }
+    @Published var bubbleShowsOffline: Bool {
+        didSet { defaults.set(bubbleShowsOffline, forKey: Keys.bubbleShowsOffline) }
     }
     @Published var iconStyle: IconStyle {
         didSet { defaults.set(iconStyle.rawValue, forKey: Keys.iconStyle) }
@@ -113,7 +124,10 @@ final class Preferences: ObservableObject {
         if defaults === UserDefaults.standard {
             Self.migrateFromOldBundleID(into: defaults)
         }
-        menuBarDisplay = MenuBarDisplay(rawValue: defaults.string(forKey: Keys.menuBarDisplay) ?? "") ?? .blippOnly
+        speechBubble = SpeechBubble(rawValue: defaults.string(forKey: Keys.speechBubble) ?? "") ?? .symbol
+        bubbleShowsCharging = defaults.object(forKey: Keys.bubbleShowsCharging) as? Bool ?? true
+        bubbleShowsBattery = defaults.object(forKey: Keys.bubbleShowsBattery) as? Bool ?? true
+        bubbleShowsOffline = defaults.object(forKey: Keys.bubbleShowsOffline) as? Bool ?? true
         iconStyle = IconStyle(rawValue: defaults.string(forKey: Keys.iconStyle) ?? "") ?? .color
         animateMenuBar = defaults.object(forKey: Keys.animateMenuBar) as? Bool ?? true
         randomizeVariants = defaults.object(forKey: Keys.randomizeVariants) as? Bool ?? true
@@ -131,7 +145,7 @@ final class Preferences: ObservableObject {
         defaults.set(true, forKey: marker)
         guard let old = defaults.persistentDomain(forName: "app.blipp.Blipp") else { return }
         let keys = [
-            Keys.menuBarDisplay, Keys.iconStyle, Keys.animateMenuBar, Keys.randomizeVariants,
+            Keys.iconStyle, Keys.animateMenuBar, Keys.randomizeVariants,
             Keys.graphInterval, Keys.graphSpan, Keys.moodInterval, Keys.clickAction,
         ]
         for key in keys where defaults.object(forKey: key) == nil {
@@ -161,7 +175,10 @@ final class Preferences: ObservableObject {
     }
 
     private enum Keys {
-        static let menuBarDisplay = "menuBarDisplay"
+        static let speechBubble = "speechBubble"
+        static let bubbleShowsCharging = "bubbleShowsCharging"
+        static let bubbleShowsBattery = "bubbleShowsBattery"
+        static let bubbleShowsOffline = "bubbleShowsOffline"
         static let iconStyle = "iconStyle"
         static let animateMenuBar = "animateMenuBar"
         static let randomizeVariants = "randomizeVariants"

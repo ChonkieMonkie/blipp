@@ -18,98 +18,223 @@ import AppKit
 import SwiftUI
 
 /// Developer tool: `Blipp --render-readme <folder>` renders the pictures used in README.md:
-/// a labelled mood gallery, the menu bar icons, the app icon, and the real panel in light and
-/// dark mode (sampled from this Mac for 65 s, so the one-minute graphs are full).
+/// Blipp on three kinds of days, every signal from calm to extreme, the menu bar with its speech
+/// bubble, the app icon, and the real panel in light and dark mode (sampled from this Mac for
+/// 65 s, so the one-minute graphs are full).
 @MainActor
 enum ReadmeImages {
     static func render(to path: String) {
         let folder = URL(fileURLWithPath: path)
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        renderMoods(to: folder.appendingPathComponent("moods.png"))
+        renderDays(to: folder.appendingPathComponent("days.png"))
+        renderSignals(to: folder.appendingPathComponent("signals.png"))
         renderMenuBar(to: folder.appendingPathComponent("menubar.png"))
         try? IconExporter.writePNG(IconExporter.renderIcon(pixels: 512), to: folder.appendingPathComponent("icon.png"))
         renderPanels(into: folder)
     }
 
-    // MARK: Moods
+    // MARK: Three days
 
-    private static let moods: [(String, String)] = [
-        ("Sleeping", "Sleeping"), ("Chilling", "Chilling"), ("Working", "Working"),
-        ("Sweating", "Sweating"), ("Burning", "On fire"), ("Juice", "Charging"),
-        ("At limit", "Charge limit"), ("Tired", "Low battery"), ("Juggling", "Busy memory"),
-        ("Hot", "Running hot"), ("Offline", "Offline"), ("Melted", "Battery empty"),
-    ]
+    private static func scene(_ build: (inout BlippScene) -> Void) -> BlippScene {
+        var scene = BlippScene()
+        build(&scene)
+        return scene
+    }
 
-    private static func renderMoods(to url: URL) {
+    /// Blipp at both extremes and somewhere in between, for the top of the README.
+    private static func renderDays(to url: URL) {
+        let days: [(String, String, BlippScene)] = [
+            ("A quiet night", "Nothing to do but nap", scene { $0.color = Palette.chilly; $0.face = .sleeping; $0.head = .zzz }),
+            ("A regular day", "Working, downloading, snacking", scene {
+                $0.color = Palette.warm; $0.face = .focused; $0.work = .light; $0.head = .juggle3
+                $0.network = .download; $0.disk = .write; $0.sticker = .cookie
+            }),
+            ("A really bad day", "Boiling over", scene { $0.color = Palette.boiling; $0.face = .boiling; $0.heat = .fire }),
+        ]
         let scale: CGFloat = 2
-        let columns = 6
-        let cellWidth: CGFloat = 150
-        let cellHeight: CGFloat = 176
-        let gap: CGFloat = 12
-        let rows = (moods.count + columns - 1) / columns
-        let width = CGFloat(columns) * cellWidth + CGFloat(columns - 1) * gap
-        let height = CGFloat(rows) * cellHeight + CGFloat(rows - 1) * gap
+        let cellWidth: CGFloat = 300
+        let cellHeight: CGFloat = 290
+        let gap: CGFloat = 16
+        let width = 3 * cellWidth + 2 * gap
 
-        let context = IconExporter.makeContext(width: Int(width * scale), height: Int(height * scale))
+        let context = IconExporter.makeContext(width: Int(width * scale), height: Int(cellHeight * scale))
         context.scaleBy(x: scale, y: scale)
-        let scenes = Dictionary(uniqueKeysWithValues: PreviewRenderer.states.map { ($0.0, $0.1) })
-
-        for (index, (key, label)) in moods.enumerated() {
-            guard let scene = scenes[key] else { continue }
-            let x = CGFloat(index % columns) * (cellWidth + gap)
-            let y = CGFloat(index / columns) * (cellHeight + gap)
-            let card = CGPath(roundedRect: CGRect(x: x, y: y, width: cellWidth, height: cellHeight), cornerWidth: 20, cornerHeight: 20, transform: nil)
-            context.addPath(card)
-            context.setFillColor(Painter.color(0xF5F7FA))
-            context.fillPath()
-
-            let size: CGFloat = 92
-            BlippRenderer.draw(scene, in: context, origin: CGPoint(x: x + (cellWidth - size) / 2, y: y + 30), size: size, time: 0.4)
-            drawLabel(label, in: context, centerX: x + cellWidth / 2, y: y + cellHeight - 34)
+        for (index, (title, subtitle, scene)) in days.enumerated() {
+            let x = CGFloat(index) * (cellWidth + gap)
+            card(in: context, CGRect(x: x, y: 0, width: cellWidth, height: cellHeight))
+            let size: CGFloat = 150
+            BlippRenderer.draw(scene, in: context, origin: CGPoint(x: x + (cellWidth - size) / 2, y: 38), size: size, time: 0.4)
+            drawLabel(title, in: context, centerX: x + cellWidth / 2, y: cellHeight - 74, size: 19)
+            drawLabel(subtitle, in: context, centerX: x + cellWidth / 2, y: cellHeight - 46, size: 14, weight: .regular, color: secondaryText)
         }
         try? IconExporter.writePNG(context.makeImage()!, to: url)
     }
 
-    private static func drawLabel(_ text: String, in context: CGContext, centerX: CGFloat, y: CGFloat) {
+    // MARK: Signals
+
+    /// One row per signal, from calm to extreme, each on the part of Blipp it owns.
+    private static let signals: [(String, String, [(String, BlippScene)])] = [
+        ("CPU", "Face and speed lines", [
+            ("Sleeping", scene { $0.face = .sleeping; $0.head = .zzz }),
+            ("Chilling", scene { $0.face = .smile }),
+            ("Busy", scene { $0.face = .focused; $0.work = .light; $0.head = .gear }),
+            ("Straining", scene { $0.face = .sweaty; $0.work = .strong }),
+            ("Maxed out", scene { $0.face = .panic; $0.work = .strong }),
+        ]),
+        ("Temperature", "Body color, sweat and steam", [
+            ("Chilly", scene { $0.color = Palette.chilly }),
+            ("Cool", scene { _ in }),
+            ("Warm", scene { $0.color = Palette.warm }),
+            ("Hot", scene { $0.color = Palette.orange; $0.heat = .sweat }),
+            ("Very hot", scene { $0.color = Palette.hot; $0.heat = .steam }),
+            ("Critical", scene { $0.color = Palette.boiling; $0.face = .boiling; $0.heat = .fire }),
+        ]),
+        ("Memory", "Above his head", [
+            ("Plenty", scene { _ in }),
+            ("Busy", scene { $0.head = .juggle3 }),
+            ("High", scene { $0.head = .juggle5 }),
+            ("Swapping", scene { $0.head = .swapBox }),
+        ]),
+        ("Network", "Left hand", [
+            ("Downloading", scene { $0.network = .download }),
+            ("Uploading", scene { $0.network = .upload }),
+            ("Both ways", scene { $0.network = .both }),
+            ("Offline", scene { $0.network = .offline }),
+        ]),
+        ("Disk", "Right hand", [
+            ("Reading", scene { $0.disk = .read }),
+            ("Writing", scene { $0.disk = .write }),
+            ("Both", scene { $0.disk = .both }),
+        ]),
+        ("Battery", "At his feet", [
+            ("Charging", scene { $0.sticker = .juice }),
+            ("Charge limit", scene { $0.sticker = .limit }),
+            ("Low", scene { $0.sticker = .low }),
+            ("Empty", scene { $0.shape = .puddle; $0.color = Palette.melted; $0.face = .dead; $0.sticker = .low }),
+        ]),
+    ]
+
+    private static func renderSignals(to url: URL) {
+        let scale: CGFloat = 2
+        let labelWidth: CGFloat = 196
+        let cellWidth: CGFloat = 122
+        let rowHeight: CGFloat = 136
+        let gap: CGFloat = 10
+        let columns = signals.map(\.2.count).max() ?? 0
+        let width = labelWidth + CGFloat(columns) * cellWidth + 12
+        let height = CGFloat(signals.count) * rowHeight + CGFloat(signals.count - 1) * gap
+
+        let context = IconExporter.makeContext(width: Int(width * scale), height: Int(height * scale))
+        context.scaleBy(x: scale, y: scale)
+        for (row, (name, part, states)) in signals.enumerated() {
+            let top = CGFloat(row) * (rowHeight + gap)
+            card(in: context, CGRect(x: 0, y: top, width: width, height: rowHeight))
+            drawLabel(name, in: context, x: 22, y: top + rowHeight / 2 - 22, size: 18)
+            drawLabel(part, in: context, x: 22, y: top + rowHeight / 2 + 2, size: 13, weight: .regular, color: secondaryText)
+            for (column, (label, scene)) in states.enumerated() {
+                let x = labelWidth + CGFloat(column) * cellWidth
+                let size: CGFloat = 68
+                BlippRenderer.draw(scene, in: context, origin: CGPoint(x: x + (cellWidth - size) / 2, y: top + 24), size: size, time: 0.4)
+                drawLabel(label, in: context, centerX: x + cellWidth / 2, y: top + rowHeight - 30, size: 13)
+            }
+        }
+        try? IconExporter.writePNG(context.makeImage()!, to: url)
+    }
+
+    // MARK: Drawing helpers
+
+    private static let primaryText = NSColor(srgbRed: 0.106, green: 0.141, blue: 0.2, alpha: 1)
+    private static let secondaryText = NSColor(srgbRed: 0.42, green: 0.46, blue: 0.53, alpha: 1)
+
+    private static func card(in context: CGContext, _ rect: CGRect) {
+        context.addPath(CGPath(roundedRect: rect, cornerWidth: 20, cornerHeight: 20, transform: nil))
+        context.setFillColor(Painter.color(0xF5F7FA))
+        context.fillPath()
+    }
+
+    private static func label(_ text: String, size: CGFloat, weight: NSFont.Weight, color: NSColor) -> NSAttributedString {
+        let font = NSFont.systemFont(ofSize: size, weight: weight)
+        let rounded = font.fontDescriptor.withDesign(.rounded).flatMap { NSFont(descriptor: $0, size: size) } ?? font
+        return NSAttributedString(string: text, attributes: [.font: rounded, .foregroundColor: color])
+    }
+
+    private static func drawLabel(_ text: String, in context: CGContext, centerX: CGFloat? = nil, x: CGFloat = 0, y: CGFloat,
+                                  size: CGFloat = 15, weight: NSFont.Weight = .semibold, color: NSColor? = nil) {
         let previous = NSGraphicsContext.current
         NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: true)
         defer { NSGraphicsContext.current = previous }
-
-        let font = NSFont.systemFont(ofSize: 15, weight: .semibold)
-        let rounded = font.fontDescriptor.withDesign(.rounded).flatMap { NSFont(descriptor: $0, size: 15) } ?? font
-        let attributes: [NSAttributedString.Key: Any] = [.font: rounded, .foregroundColor: NSColor(srgbRed: 0.106, green: 0.141, blue: 0.2, alpha: 1)]
-        let string = NSAttributedString(string: text, attributes: attributes)
-        let size = string.size()
-        string.draw(at: CGPoint(x: centerX - size.width / 2, y: y))
+        let string = label(text, size: size, weight: weight, color: color ?? primaryText)
+        let left = centerX.map { $0 - string.size().width / 2 } ?? x
+        string.draw(at: CGPoint(x: left, y: y))
     }
 
     // MARK: Menu bar
 
-    /// A slice of a menu bar, dark and light, with Blipp in a few moods at 2× scale.
+    /// Slices of a menu bar with Blipp and his speech bubble, at 2× scale: symbols on a dark and
+    /// a light menu bar, then symbols with values, then monochrome.
     private static func renderMenuBar(to url: URL) {
-        let keys = ["Chilling", "Working", "Sweating", "Burning", "Juice", "Tired", "Juggling", "Sleeping"]
-        let scenes = Dictionary(uniqueKeysWithValues: PreviewRenderer.states.map { ($0.0, $0.1) })
+        let calm = BlippScene()
+        let items: [(BlippScene, MenuBubble?)] = [
+            (calm, nil),
+            (scene { $0.face = .focused; $0.work = .light; $0.network = .download }, MenuBubble(kind: .download, value: "12.4 MB/s")),
+            (scene { $0.head = .juggle5 }, MenuBubble(kind: .memory, value: "86%")),
+            (scene { $0.sticker = .juice }, MenuBubble(kind: .charging, value: "64%")),
+            (scene { $0.sticker = .low }, MenuBubble(kind: .low, value: "15%")),
+            (scene { $0.network = .offline }, MenuBubble(kind: .offline, value: "Offline")),
+            (scene { $0.color = Palette.boiling; $0.face = .boiling; $0.heat = .fire }, MenuBubble(kind: .heat, value: "104 °C", emergency: true)),
+        ]
+        let rows: [(SpeechBubble, IconStyle, Bool)] = [
+            (.symbol, .color, true), (.symbol, .color, false), (.symbolAndValue, .color, true), (.symbol, .monochrome, false),
+        ]
         let scale: CGFloat = 2
-        let iconSpacing: CGFloat = 30
         let barHeight: CGFloat = 26
-        let padding: CGFloat = 14
-        let width = padding * 2 + CGFloat(keys.count) * iconSpacing - (iconSpacing - 18)
-        let height = barHeight * 2 + 8
+        let rowGap: CGFloat = 8
+        let padding: CGFloat = 12
+        let itemGap: CGFloat = 12
+
+        func images(_ bubbleStyle: SpeechBubble, _ style: IconStyle, _ dark: Bool) -> [NSImage] {
+            items.map { scene, bubble in
+                var shown = MenuBarIcon.shownBubble(bubble, style: bubbleStyle)
+                if bubbleStyle != .symbolAndValue { shown?.value = "" }
+                return MenuBarIcon.image(scene: scene, style: style, bubble: shown, bubbleStyle: bubbleStyle,
+                                         darkMenuBar: dark, time: MenuBarRenderer.stillTime)
+            }
+        }
+        let rendered = rows.map { images($0.0, $0.1, $0.2) }
+        func rowWidth(_ images: [NSImage]) -> CGFloat {
+            let icons: CGFloat = images.reduce(0) { $0 + $1.size.width }
+            return padding * 2 + icons + CGFloat(images.count - 1) * itemGap
+        }
+        let width: CGFloat = rendered.map(rowWidth).max() ?? 0
+        let height = CGFloat(rows.count) * barHeight + CGFloat(rows.count - 1) * rowGap
 
         let context = IconExporter.makeContext(width: Int(width * scale), height: Int(height * scale))
         context.scaleBy(x: scale, y: scale)
-        for (row, (background, template)) in [(UInt32(0x1E2433), false), (UInt32(0xEEF0F3), false)].enumerated() {
-            let top = CGFloat(row) * (barHeight + 8)
-            let bar = CGPath(roundedRect: CGRect(x: 0, y: top, width: width, height: barHeight), cornerWidth: 7, cornerHeight: 7, transform: nil)
-            context.addPath(bar)
-            context.setFillColor(Painter.color(background))
+        let previous = NSGraphicsContext.current
+        NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: true)
+        defer { NSGraphicsContext.current = previous }
+        for (row, (_, _, dark)) in rows.enumerated() {
+            let top = CGFloat(row) * (barHeight + rowGap)
+            context.addPath(CGPath(roundedRect: CGRect(x: 0, y: top, width: width, height: barHeight), cornerWidth: 7, cornerHeight: 7, transform: nil))
+            context.setFillColor(Painter.color(dark ? 0x1E2433 : 0xEEF0F3))
             context.fillPath()
-            for (index, key) in keys.enumerated() {
-                guard let scene = scenes[key] else { continue }
-                context.saveGState()
-                context.translateBy(x: padding + CGFloat(index) * iconSpacing, y: top + (barHeight - 18) / 2)
-                MenuBarRenderer.draw(scene, in: context, size: 18, template: template, time: MenuBarRenderer.stillTime)
-                context.restoreGState()
+            // Right-aligned, like the right end of a real menu bar.
+            var x = width - padding
+            for image in rendered[row].reversed() {
+                x -= image.size.width
+                let rect = CGRect(x: x, y: top + (barHeight - image.size.height) / 2, width: image.size.width, height: image.size.height)
+                if image.isTemplate {
+                    // Tint like the menu bar does: white on dark, black on light.
+                    context.beginTransparencyLayer(auxiliaryInfo: nil)
+                    image.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
+                    context.setBlendMode(.sourceIn)
+                    context.setFillColor(Painter.color(dark ? 0xFFFFFF : 0x000000))
+                    context.fill(rect.insetBy(dx: -2, dy: -2))
+                    context.endTransparencyLayer()
+                } else {
+                    image.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
+                }
+                x -= itemGap
             }
         }
         try? IconExporter.writePNG(context.makeImage()!, to: url)
@@ -122,6 +247,7 @@ enum ReadmeImages {
         let prefs = Preferences(defaults: defaults)
         prefs.graphInterval = 0.5
         prefs.graphSpan = 60
+        prefs.networkUnit = .bytes
         let monitor = SystemMonitor(prefs: prefs)
         // Generic examples, so the pictures never show the processes of whoever renders them.
         monitor.useExampleProcesses([
