@@ -64,6 +64,8 @@ final class SystemMonitor: ObservableObject {
     private var exampleProcesses: [ProcessUsage]?
     /// Only for rendering README pictures: network and disk speeds for a given uptime.
     private var exampleTraffic: ((TimeInterval) -> (down: Double, up: Double, read: Double, write: Double))?
+    /// Only for rendering README animations: total CPU load in percent for a given uptime.
+    private var exampleLoad: ((TimeInterval) -> Double)?
 
     // Only touched on the main thread.
     private let moodEngine = MoodEngine()
@@ -148,6 +150,12 @@ final class SystemMonitor: ObservableObject {
     /// pictures, so the graphs have something to show; the app itself never calls this.
     func useExampleTraffic(_ traffic: @escaping (TimeInterval) -> (down: Double, up: Double, read: Double, write: Double)) {
         queue.async { [weak self] in self?.exampleTraffic = traffic }
+    }
+
+    /// Shows a made-up CPU load instead of this Mac's (each core keeps its share), so a README
+    /// animation doesn't depend on how idle the Mac that renders it is. The app never calls this.
+    func useExampleLoad(_ load: @escaping (TimeInterval) -> Double) {
+        queue.async { [weak self] in self?.exampleLoad = load }
     }
 
     /// The panel shows graphs, processes and live battery details, so it gets them at full rate.
@@ -237,7 +245,12 @@ final class SystemMonitor: ObservableObject {
         let now = ProcessInfo.processInfo.systemUptime
         var next = Snapshot()
 
-        let load = cpu.sample()
+        var load = cpu.sample()
+        if let total = exampleLoad?(now) {
+            let factor = load.total > 0.5 ? total / load.total : 0
+            load.cores = load.cores.map { factor > 0 ? min(100, $0 * factor) : total }
+            load.total = total
+        }
         next.cpuTotal = load.total
         next.cpuCores = load.cores
         cpuSeries.append(load.total, at: now)

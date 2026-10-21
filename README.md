@@ -16,7 +16,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/days.png" width="932" alt="Blipp on three kinds of days: asleep and blue on a quiet night, focused and juggling with a download, a pencil and a cookie on a regular day, and red and boiling with his head on fire on a really bad day">
+  <img src="docs/states.gif" width="600" alt="Blipp going through his day: sleeping, chilling, busy, downloading, writing to disk, juggling memory, swapping, charging, running hot, maxed out, critical heat and an empty battery, each with what he says and how he looks in the menu bar">
 </p>
 
 ## Meet Blipp
@@ -26,10 +26,17 @@ and dozes off. On a regular day he's focused: juggling a few apps, catching a do
 scribbling to disk with the other and snacking on a cookie while the charger is plugged in. And on a
 really bad day, when the chip hits its thermal limit, he turns red, boils over and his head catches fire.
 
-Click him and he says hello with one of a dozen little animations (a hop, a wave, a spin, peeking up
-from below), picked to suit his mood. His headline follows what's going on, from
-"Dreaming of electric sheep" to "Incoming!" to "Somebody call the fan!", along with the numbers that
-matter most right now. Below it is everything behind his mood:
+Here he is at work. A download starts, so he catches it in one hand and his speech bubble pops up in
+the menu bar. Click him and he says hello with one of a dozen little animations (a hop, a wave, a
+spin, peeking up from below), picked to suit his mood:
+
+<p align="center">
+  <img src="docs/demo.gif" width="540" alt="Blipp in a menu bar: a download starts, a download bubble appears next to him, a click opens his panel with live numbers and graphs, and a second click closes it when the download is done">
+</p>
+
+His headline follows what's going on, from "Dreaming of electric sheep" to "Incoming!" to
+"Somebody call the fan!", along with the numbers that matter most right now. Below it is everything
+behind his mood:
 
 <p align="center">
   <picture>
@@ -172,7 +179,9 @@ swift build -c release
 BIN="$(swift build -c release --show-bin-path)"
 "$BIN/Blipp" --benchmark --sensors        # time every sampler, show the CPU temperature and list the sensors
 "$BIN/Blipp" --render-gallery /tmp/blipp  # PNGs of every state, speech bubble and menu bar icon
-"$BIN/Blipp" --render-readme docs         # regenerate the pictures in this README (takes ~70 s)
+"$BIN/Blipp" --render-readme docs         # regenerate the still pictures in this README (takes ~70 s)
+"$BIN/Blipp" --render-animations /tmp/frames   # frames for the two animations (takes ~80 s)
+python3 scripts/make-gif.py /tmp/frames/states docs/states.gif   # needs Pillow; same for demo
 open build/Blipp.app --args --debug-panel-cycle  # open the panel, expand and collapse both sections, close it
 ```
 

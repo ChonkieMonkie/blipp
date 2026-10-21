@@ -38,6 +38,11 @@ if arguments.count >= 3, arguments[1] == "--render-readme" {
     exit(0)
 }
 
+if arguments.count >= 3, arguments[1] == "--render-animations" {
+    MainActor.assumeIsolated { ReadmeAnimations.render(to: arguments[2]) }
+    exit(0)
+}
+
 if arguments.contains("--benchmark") {
     Benchmark.run()
     exit(0)

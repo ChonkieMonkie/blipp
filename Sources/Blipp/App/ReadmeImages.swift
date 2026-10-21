@@ -17,57 +17,27 @@
 import AppKit
 import SwiftUI
 
-/// Developer tool: `Blipp --render-readme <folder>` renders the pictures used in README.md:
-/// Blipp on three kinds of days, every signal from calm to extreme, the menu bar with its speech
-/// bubble, the app icon, and the real panel in light and dark mode (sampled from this Mac for
-/// 65 s, so the one-minute graphs are full).
+/// Developer tool: `Blipp --render-readme <folder>` renders the still pictures used in
+/// README.md: every signal from calm to extreme, the menu bar with its speech bubble, the app
+/// icon, and the real panel in light and dark mode (sampled from this Mac for 65 s, so the
+/// one-minute graphs are full). The animations come from `ReadmeAnimations`.
 @MainActor
 enum ReadmeImages {
     static func render(to path: String) {
         let folder = URL(fileURLWithPath: path)
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        renderDays(to: folder.appendingPathComponent("days.png"))
         renderSignals(to: folder.appendingPathComponent("signals.png"))
         renderMenuBar(to: folder.appendingPathComponent("menubar.png"))
         try? IconExporter.writePNG(IconExporter.renderIcon(pixels: 512), to: folder.appendingPathComponent("icon.png"))
         renderPanels(into: folder)
     }
 
-    // MARK: Three days
+    // MARK: Scenes
 
     private static func scene(_ build: (inout BlippScene) -> Void) -> BlippScene {
         var scene = BlippScene()
         build(&scene)
         return scene
-    }
-
-    /// Blipp at both extremes and somewhere in between, for the top of the README.
-    private static func renderDays(to url: URL) {
-        let days: [(String, String, BlippScene)] = [
-            ("A quiet night", "Nothing to do but nap", scene { $0.color = Palette.chilly; $0.face = .sleeping; $0.head = .zzz }),
-            ("A regular day", "Working, downloading, snacking", scene {
-                $0.color = Palette.warm; $0.face = .focused; $0.work = .light; $0.head = .juggle3
-                $0.network = .download; $0.disk = .write; $0.sticker = .cookie
-            }),
-            ("A really bad day", "Boiling over", scene { $0.color = Palette.boiling; $0.face = .boiling; $0.heat = .fire }),
-        ]
-        let scale: CGFloat = 2
-        let cellWidth: CGFloat = 300
-        let cellHeight: CGFloat = 290
-        let gap: CGFloat = 16
-        let width = 3 * cellWidth + 2 * gap
-
-        let context = IconExporter.makeContext(width: Int(width * scale), height: Int(cellHeight * scale))
-        context.scaleBy(x: scale, y: scale)
-        for (index, (title, subtitle, scene)) in days.enumerated() {
-            let x = CGFloat(index) * (cellWidth + gap)
-            card(in: context, CGRect(x: x, y: 0, width: cellWidth, height: cellHeight))
-            let size: CGFloat = 150
-            BlippRenderer.draw(scene, in: context, origin: CGPoint(x: x + (cellWidth - size) / 2, y: 38), size: size, time: 0.4)
-            drawLabel(title, in: context, centerX: x + cellWidth / 2, y: cellHeight - 74, size: 19)
-            drawLabel(subtitle, in: context, centerX: x + cellWidth / 2, y: cellHeight - 46, size: 14, weight: .regular, color: secondaryText)
-        }
-        try? IconExporter.writePNG(context.makeImage()!, to: url)
     }
 
     // MARK: Signals
