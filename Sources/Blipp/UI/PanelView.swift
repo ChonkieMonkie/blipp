@@ -400,7 +400,7 @@ private struct CoreGrid: View {
                 .font(.system(size: 10, weight: .heavy, design: .rounded))
                 .tracking(0.4)
                 .foregroundStyle(.secondary)
-            HStack(spacing: 4) {
+            HStack(alignment: .top, spacing: 4) {
                 ForEach(Array(values.enumerated()), id: \.offset) { index, value in
                     VStack(spacing: 2) {
                         ZStack(alignment: .bottom) {
@@ -410,10 +410,14 @@ private struct CoreGrid: View {
                                 .frame(height: max(3, 40 * value / 100))
                         }
                         .frame(width: 14, height: 40)
+                        // "100" is a hair wider than the column; let it spill into the gap
+                        // rather than wrap onto a second line and push the bar up.
                         Text("\(Int(value.rounded()))")
                             .font(.system(size: 10, weight: .semibold, design: .rounded))
                             .monospacedDigit()
                             .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .fixedSize()
                     }
                     .frame(width: 20)
                     .accessibilityElement(children: .ignore)
